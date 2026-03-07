@@ -19,14 +19,14 @@ class RolesYPermisosSeeder extends Seeder
             'usuarios.crear',
             'usuarios.editar',
             'usuarios.eliminar',
-            'usuarios.roles', 
+            'usuarios.roles',
 
             // Referidores
             'referidores.ver',
             'referidores.crear',
             'referidores.editar',
             'referidores.eliminar',
-            'referidores.asignar_acceso', 
+            'referidores.asignar_acceso',
 
             // Registros públicos (personas)
             'registros.ver_todos',
@@ -48,6 +48,14 @@ class RolesYPermisosSeeder extends Seeder
 
             'dashboard.exportar',
             'whatsapp.enviar',
+
+            // Referidores pregoneros
+            'pregoneros_referidos.ver',
+            'pregoneros_referidores.ver',
+            'pregoneros_referidores.crear',
+            'pregoneros_referidores.editar',
+            'pregoneros_referidores.exportar_masivo',
+
         ];
 
         // 1) Crear/actualizar permisos (idempotente)
@@ -71,6 +79,7 @@ class RolesYPermisosSeeder extends Seeder
         $rolOperador->syncPermissions([
             'dashboard.ver',
             'referidores.ver',
+            'pregoneros_referidos.ver',
             'registros.ver_todos',
             'registros.editar',
             'registros.cambiar_estado',

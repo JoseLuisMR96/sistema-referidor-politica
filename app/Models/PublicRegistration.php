@@ -14,10 +14,10 @@ class PublicRegistration extends Model
         'document_number',
         'age',
         'gender',
-        'residence_municipality',        // (temporal)
-        'voting_municipality',           // (temporal)
-        'residence_municipality_id',     // nuevo
-        'voting_municipality_id',        // nuevo
+        'residence_municipality',    
+        'voting_municipality',          
+        'residence_municipality_id',     
+        'voting_municipality_id',        
         'phone',
         'referrer_id',
         'ref_code_used',

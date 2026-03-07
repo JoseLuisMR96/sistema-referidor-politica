@@ -84,6 +84,12 @@
                     </x-sidebar-link>
                 @endcan
 
+                @can('whatsapp.enviar')
+                    <x-sidebar-link route="whatsapp.whatsapp.outbox" icon="whatsapp">
+                        WhatsApp Outbox
+                    </x-sidebar-link>
+                @endcan
+
                 @can('registros.ver_todos')
                     <x-sidebar-link route="registrations.index" icon="document-text">
                         Registros
@@ -105,6 +111,12 @@
                 @can('referidores.ver')
                     <x-sidebar-link route="referrers.index" icon="link">
                         Referidores
+                    </x-sidebar-link>
+                @endcan
+
+                @can('pregoneros_referidores.ver')
+                    <x-sidebar-link route="pregoneros.referidores.index" icon="link">
+                        Referidores pregoneros
                     </x-sidebar-link>
                 @endcan
 

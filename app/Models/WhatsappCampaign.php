@@ -8,10 +8,24 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class WhatsappCampaign extends Model
 {
     protected $fillable = [
-        'name','type','body','media_path','media_mime',
-        'location_label','location_lat','location_lng','location_url',
-        'template_name','template_variables',
-        'status','total','delivered','failed_count'
+        'name',
+        'type',
+        'body',
+        'media_path',
+        'media_mime',
+        'location_label',
+        'location_lat',
+        'location_lng',
+        'location_url',
+        'template_name',
+        'template_variables',
+        'status',
+        'total',
+        'delivered',
+        'failed_count',
+        'messaging_service_sid',
+        'content_sid',
+        'content_variables',
     ];
 
     protected $casts = [

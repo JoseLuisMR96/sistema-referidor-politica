@@ -32,6 +32,7 @@ return [
         'sid' => env('TWILIO_ACCOUNT_SID'),
         'token' => env('TWILIO_AUTH_TOKEN'),
         'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
+        'messaging_service_sid' => env('TWILIO_MESSAGING_SERVICE_SID'),
     ],
 
     'retell' => [
@@ -43,6 +44,12 @@ return [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
+    ],
+
+    'whatsapp_worker' => [
+        'token' => env('WHATSAPP_WORKER_TOKEN'),
+        'reserve_seconds' => (int) env('WHATSAPP_RESERVE_SECONDS', 180),
+        'max_attempts' => (int) env('WHATSAPP_MAX_ATTEMPTS', 5),
     ],
 
 ];

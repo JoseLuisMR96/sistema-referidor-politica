@@ -13,7 +13,7 @@ class TwilioWhatsappStatusController extends Controller
         $signature = $request->header('X-Twilio-Signature');
         $validator = new RequestValidator(config('services.twilio.token'));
 
-        $url = config('app.url') . $request->getRequestUri();
+        $url = $request->fullUrl();
         $params = $request->all();
 
         if (!$validator->validate($signature, $url, $params)) {
