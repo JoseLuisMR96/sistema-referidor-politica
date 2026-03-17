@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WhatsappCampaign extends Model
 {
+    protected $table = 'campaigns';
+
     protected $fillable = [
         'name',
         'type',

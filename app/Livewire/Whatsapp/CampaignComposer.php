@@ -165,7 +165,7 @@ class CampaignComposer extends Component
 
             SendWhatsappCampaignMessage::dispatch($msg->id)->onQueue('whatsapp');
 
-            $campaign->update(['total' => 1, 'status' => 'sending']);
+            $campaign->update(['total' => 1, 'status' => 'active']);
 
             session()->flash('ok', '✅ Envío de PRUEBA en cola. Revisa WhatsApp y el dashboard de estados.');
             $this->resetForm();
@@ -180,13 +180,13 @@ class CampaignComposer extends Component
                 'campaign_id' => $campaign->id,
                 'to' => $to,
                 'contact_name' => $r['name'] ?? null,
-                'status' => 'created',
+                'status' => 'pending',
             ]);
 
             SendWhatsappCampaignMessage::dispatch($msg->id)->onQueue('whatsapp');
         }
 
-        $campaign->update(['total' => $campaign->messages()->count(), 'status' => 'sending']);
+        $campaign->update(['total' => $campaign->messages()->count(), 'status' => 'active']);
 
         session()->flash('ok', '✅ Campaña en cola. La cola se encarga y tu dashboard se actualiza con estados.');
         $this->resetForm();

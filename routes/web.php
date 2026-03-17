@@ -25,6 +25,7 @@ use App\Livewire\Users\UserEdit;
 use App\Livewire\Users\UserIndex;
 use App\Livewire\Whatsapp\CampaignComposer;
 use App\Livewire\Whatsapp\WhatsappOutboxManager;
+use App\Livewire\Wpp\CampaignUploader;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -81,6 +82,16 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/whatsapp/whatsapp-outbox', WhatsappOutboxManager::class)
         ->name('whatsapp.whatsapp.outbox');
+
+    /*
+    |--------------------------------------------------------------------------
+    | WhatsApp WPPConnect
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/whatsapp/wpp/campanas/nueva', CampaignUploader::class)
+        ->middleware('permission:whatsapp.enviar')
+        ->name('wpp.campaigns.create');
     /*
     |----------------------------------------------------------------------
     | Referidores

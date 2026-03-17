@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WhatsappMessage extends Model
 {
+    protected $table = 'campaign_messages';
+
     protected $fillable = [
         'campaign_id','to','contact_name','twilio_sid','status',
         'error_code','error_message','sent_at','delivered_at','last_status_at',

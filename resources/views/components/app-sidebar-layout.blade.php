@@ -84,6 +84,10 @@
                     </x-sidebar-link>
                 @endcan
 
+                {{-- <x-sidebar-link route="wpp.campaigns.create" icon="chat-bubble-left-right">
+                    WhatsApp WPP
+                </x-sidebar-link> --}}
+
                 @can('whatsapp.enviar')
                     <x-sidebar-link route="whatsapp.whatsapp.outbox" icon="whatsapp">
                         WhatsApp Outbox
