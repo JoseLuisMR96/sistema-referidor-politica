@@ -46,4 +46,5 @@ Route::middleware('auth:api')->group(function () {
 
 // Webhook de Twilio (sin autenticación, pero validado con firma)
 Route::post('/whatsapp/webhook/status', [WebhookController::class, 'handle'])
+    ->middleware('twilio.signature')
     ->name('api.whatsapp.webhook.status');

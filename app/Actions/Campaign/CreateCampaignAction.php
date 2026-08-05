@@ -7,6 +7,7 @@ use App\Models\Campaign;
 use App\Models\CampaignMessage;
 use App\Models\CampaignMetrics;
 use App\Services\CampaignRateLimiter;
+use App\Support\PhoneNumber;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -87,31 +88,9 @@ class CreateCampaignAction
 
     /**
      * Normaliza un número de teléfono a formato WhatsApp
-     *
-     * @param string $phone
-     * @return string|null
      */
     private function normalizePhone(string $phone): ?string
     {
-        // Eliminar espacios y caracteres especiales
-        $phone = trim($phone);
-        $digits = preg_replace('/\D/', '', $phone);
-
-        // Si viene con "whatsapp:" ya, retornar como está
-        if (str_starts_with($phone, 'whatsapp:')) {
-            return $phone;
-        }
-
-        // Si tiene 10 dígitos (Colombia sin el 57), agregar prefijo
-        if (strlen($digits) === 10) {
-            $digits = '57' . $digits;
-        }
-
-        // Validar rango válido
-        if (strlen($digits) < 11 || strlen($digits) > 15) {
-            return null;
-        }
-
-        return 'whatsapp:' . $digits;
+        return PhoneNumber::toWhatsApp($phone);
     }
 }

@@ -1,45 +1,77 @@
 <?php
 
+use App\Enums\CampaignStatusEnum;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     /**
-     * Run the migrations.
-     * 
-     * Expande los enums de status para incluir todos los estados de Twilio
+     * Estados válidos de un mensaje (los de Twilio + pending local).
+     *
+     * @return list<string>
      */
+    public static function messageStatuses(): array
+    {
+        return ['pending', 'queued', 'accepted', 'sent', 'delivered', 'undelivered', 'failed', 'read'];
+    }
+
+    /**
+     * Estados válidos de una campaña.
+     *
+     * Se derivan de CampaignStatusEnum para que no se desincronicen, más los
+     * valores heredados que puedan existir en filas antiguas.
+     *
+     * @return list<string>
+     */
+    public static function campaignStatuses(): array
+    {
+        $legacy = ['active', 'pending', 'resumed'];
+
+        $actuales = array_map(
+            fn(CampaignStatusEnum $case) => $case->value,
+            CampaignStatusEnum::cases(),
+        );
+
+        return array_values(array_unique([...$actuales, ...$legacy]));
+    }
+
+    /**
+     * Convierte la columna en ENUM. Solo aplica en MySQL/MariaDB: en sqlite
+     * (que es lo que usa la suite de tests) la columna se queda como texto.
+     *
+     * @param  list<string>  $statuses
+     */
+    public static function applyEnum(string $table, array $statuses, string $default): void
+    {
+        if (! Schema::hasTable($table)) {
+            return;
+        }
+
+        if (! in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            return;
+        }
+
+        $lista = "'" . implode("','", $statuses) . "'";
+
+        // Normalizar los valores fuera de rango antes de restringir la columna
+        DB::statement("UPDATE `{$table}` SET `status` = '{$default}' WHERE `status` NOT IN ({$lista}) OR `status` IS NULL");
+
+        DB::statement("ALTER TABLE `{$table}` MODIFY COLUMN `status` ENUM({$lista}) DEFAULT '{$default}'");
+    }
+
     public function up(): void
     {
-        // Twilio states: queued, accepted, sent, delivered, undelivered, failed, read
-        $statuses = ['queued', 'accepted', 'sent', 'delivered', 'undelivered', 'failed', 'read', 'pending'];
-        $statusesStr = implode("','", $statuses);
-
-        if (Schema::hasTable('campaign_messages')) {
-            // First, ensure only valid status values exist
-            DB::statement("UPDATE `campaign_messages` SET `status` = 'pending' WHERE `status` NOT IN ('" . $statusesStr . "') OR `status` IS NULL");
-            
-            // Then change the column type to ENUM with all valid values
-            DB::statement("ALTER TABLE `campaign_messages` MODIFY COLUMN `status` ENUM('" . $statusesStr . "') DEFAULT 'pending'");
-        }
-
-        if (Schema::hasTable('campaigns')) {
-            $campaignStatuses = ['queued', 'active', 'paused', 'completed', 'cancelled', 'failed', 'pending', 'resumed'];
-            $campaignStatusesStr = implode("','", $campaignStatuses);
-            
-            // First, update any invalid status values to a valid default
-            DB::statement("UPDATE `campaigns` SET `status` = 'pending' WHERE `status` NOT IN ('" . $campaignStatusesStr . "') OR `status` IS NULL");
-            
-            // Then change the column type to ENUM
-            DB::statement("ALTER TABLE `campaigns` MODIFY COLUMN `status` ENUM('" . $campaignStatusesStr . "') DEFAULT 'pending'");
-        }
+        self::applyEnum('campaign_messages', self::messageStatuses(), 'pending');
+        self::applyEnum('campaigns', self::campaignStatuses(), 'draft');
     }
 
     public function down(): void
     {
-        // Safely revert to VARCHAR to avoid data conflicts
+        if (! in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            return;
+        }
+
         if (Schema::hasTable('campaign_messages')) {
             DB::statement("ALTER TABLE `campaign_messages` MODIFY COLUMN `status` VARCHAR(255) DEFAULT 'pending'");
         }

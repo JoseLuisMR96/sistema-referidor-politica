@@ -36,12 +36,12 @@ class ProcessCampaignBatchJob implements ShouldQueue
      */
     public int $timeout = 300;
 
-    /**
-     * Cola a usar
-     */
-    public string $queue = 'campaigns';
-
-    public function __construct(public int $batchId) {}
+    public function __construct(public int $batchId)
+    {
+        // La cola se asigna aquí y no como propiedad: `$queue` ya viene del
+        // trait Queueable y redeclararla tipada es un fatal error de PHP.
+        $this->onQueue('campaigns');
+    }
 
     public function handle(CampaignRateLimiter $limiter): void
     {

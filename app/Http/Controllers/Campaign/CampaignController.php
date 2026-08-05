@@ -140,7 +140,7 @@ class CampaignController extends Controller
                 'campaign_id' => $campaign->id,
                 'updated_at' => now(),
             ]);
-            $metrics->refresh();
+            $metrics->recalcular();
         }
 
         return response()->json([

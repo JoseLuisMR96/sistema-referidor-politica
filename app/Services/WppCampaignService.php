@@ -6,6 +6,7 @@ use App\Jobs\SendWppMessage;
 use App\Models\WppCampaign;
 use App\Models\WppContact;
 use App\Models\WppMessage;
+use App\Support\PhoneNumber;
 
 class WppCampaignService
 {
@@ -75,12 +76,6 @@ class WppCampaignService
 
     private function normalizePhone(string $phone): string
     {
-        $phone = preg_replace('/\D+/', '', trim($phone));
-
-        if (preg_match('/^\d{10}$/', $phone)) {
-            $phone = '57' . $phone;
-        }
-
-        return $phone;
+        return PhoneNumber::digits($phone);
     }
 }

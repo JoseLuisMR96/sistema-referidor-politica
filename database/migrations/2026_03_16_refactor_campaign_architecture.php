@@ -6,6 +6,24 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 
 return new class extends Migration {
+    /**
+     * Crea un índice solo si no existe todavía.
+     *
+     * Antes esto era `ALTER TABLE ... ADD INDEX IF NOT EXISTS`, sintaxis
+     * exclusiva de MySQL que hacía imposible correr la suite de tests
+     * (phpunit.xml usa sqlite en memoria).
+     */
+    private function addIndexIfMissing(string $table, string $index, string $column): void
+    {
+        if (Schema::hasIndex($table, $index)) {
+            return;
+        }
+
+        Schema::table($table, function (Blueprint $table) use ($index, $column) {
+            $table->index($column, $index);
+        });
+    }
+
     public function up(): void
     {
         // 1. Renombrar whatsapp_campaigns → campaigns PRIMERO
@@ -47,8 +65,8 @@ return new class extends Migration {
             });
 
             // Add indexes separately to avoid duplication
-            DB::statement('ALTER TABLE `campaign_messages` ADD INDEX IF NOT EXISTS `campaign_messages_referrer_id_index` (`referrer_id`)');
-            DB::statement('ALTER TABLE `campaign_messages` ADD INDEX IF NOT EXISTS `campaign_messages_referidor_pregonero_id_index` (`referidor_pregonero_id`)');
+            $this->addIndexIfMissing('campaign_messages', 'campaign_messages_referrer_id_index', 'referrer_id');
+            $this->addIndexIfMissing('campaign_messages', 'campaign_messages_referidor_pregonero_id_index', 'referidor_pregonero_id');
         }
 
         // 4. Agregar columnas a campaigns (si no existen)
@@ -80,8 +98,8 @@ return new class extends Migration {
             });
 
             // Add indexes separately
-            DB::statement('ALTER TABLE `campaigns` ADD INDEX IF NOT EXISTS `campaigns_referrer_id_index` (`referrer_id`)');
-            DB::statement('ALTER TABLE `campaigns` ADD INDEX IF NOT EXISTS `campaigns_referidor_pregonero_id_index` (`referidor_pregonero_id`)');
+            $this->addIndexIfMissing('campaigns', 'campaigns_referrer_id_index', 'referrer_id');
+            $this->addIndexIfMissing('campaigns', 'campaigns_referidor_pregonero_id_index', 'referidor_pregonero_id');
         }
 
         // NOTE: Foreign key campaign_messages.campaign_id → campaigns.id was automatically 

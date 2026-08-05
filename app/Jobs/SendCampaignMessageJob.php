@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\CampaignMessage;
+use App\Support\PhoneNumber;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -28,9 +29,13 @@ class SendCampaignMessageJob implements ShouldQueue
 
     public int $tries = 3;
     public int $timeout = 120;
-    public string $queue = 'messages';
 
-    public function __construct(public int $messageId) {}
+    public function __construct(public int $messageId)
+    {
+        // La cola se asigna aquí y no como propiedad: `$queue` ya viene del
+        // trait Queueable y redeclararla tipada es un fatal error de PHP.
+        $this->onQueue('messages');
+    }
 
     public function handle(): void
     {
@@ -56,9 +61,10 @@ class SendCampaignMessageJob implements ShouldQueue
                 config('services.twilio.token')
             );
 
-            $to = $message->to;
-            if (!str_starts_with($to, 'whatsapp:')) {
-                $to = 'whatsapp:' . $to;
+            $to = PhoneNumber::toWhatsApp($message->to);
+
+            if (! $to) {
+                throw new \RuntimeException("Número inválido: {$message->to}");
             }
 
             // Obtener MSID desde campaña o config
@@ -71,7 +77,7 @@ class SendCampaignMessageJob implements ShouldQueue
 
             $payload = [
                 'messagingServiceSid' => $msid,
-                'statusCallback' => url('/api/whatsapp/webhook/status'),
+                'statusCallback' => url(config('services.twilio.status_callback_path')),
             ];
 
             // Enviar según tipo de campaña
@@ -89,8 +95,7 @@ class SendCampaignMessageJob implements ShouldQueue
                 $payload['body'] = $this->buildMessageBody($campaign, $message);
 
                 if ($campaign->type === 'media' && $campaign->media_path) {
-                    $url = Storage::disk('public')->url($campaign->media_path);
-                    $payload['mediaUrl'] = [url('storage/' . $campaign->media_path)];
+                    $payload['mediaUrl'] = [url(Storage::disk('public')->url($campaign->media_path))];
                 }
             }
 
@@ -111,13 +116,21 @@ class SendCampaignMessageJob implements ShouldQueue
         } catch (\Throwable $e) {
             Log::error('Error sending campaign message', [
                 'message_id' => $this->messageId,
+                'attempt' => $this->attempts(),
                 'error' => $e->getMessage(),
             ]);
 
-            $message->markAsFailed($e->getMessage());
+            // Reintentar con backoff mientras queden intentos. Solo se marca
+            // como fallido al agotarlos: antes se marcaba y además se reencolaba,
+            // así que el mensaje quedaba en 'failed' pero se reenviaba igual.
+            if ($this->attempts() < $this->tries) {
+                $message->update(['status' => 'pending', 'last_status_at' => now()]);
+                $this->release(60 * $this->attempts());
 
-            // Reintentar con backoff exponencial
-            $this->release($this->tries * 60);
+                return;
+            }
+
+            $message->markAsFailed($e->getMessage());
         }
     }
 
