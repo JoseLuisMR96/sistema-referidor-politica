@@ -12,6 +12,8 @@ Panel administrativo ("MetaTank Politic") para **recolección de datos de campa�
 
 Todo el sistema maneja **PII sensible** (nombre completo, cédula, teléfono, puesto de votación, edad, género). Al agregar logs, exports o endpoints, no expandas la superficie de exposición de esos campos sin que se pida explícitamente.
 
+La autorización de tratamiento de datos (Ley 1581 de 2012) se recoge **en papel, en una hoja firmada**, fuera del sistema; solo se registra a quien ya firmó. Por eso los formularios públicos no tienen checkbox de consentimiento: no es un olvido.
+
 ## Stack
 
 - PHP 8.2 · Laravel 12 · MySQL (`app_referido`)
@@ -31,7 +33,7 @@ npm run dev / npm run build
 ./vendor/bin/pint   # formateo
 ```
 
-Workers en producción (sin ellos NO se envían mensajes ni agradecimientos):
+Workers en producción (sin ellos NO se envían los mensajes de campaña; los agradecimientos salen síncronos desde el webhook). La UI actual solo usa `whatsapp` (Composer) y `wpp`; `campaigns` y `messages` son de la pila nueva, que hoy no se despacha:
 
 ```bash
 php artisan queue:work --queue=campaigns --max-jobs=10 --max-time=3600
@@ -70,6 +72,8 @@ Esto es la mayor fuente de confusión del repo. Antes de tocar cualquier cosa de
 Flujo: `CreateCampaignAction` → `CampaignRateLimiter::createBatchesForCampaign` (lotes de 50, ~20 rps) → `ProcessCampaignBatchJob` (cola `campaigns`) → `SendCampaignMessageJob` (cola `messages`) → Twilio.
 API REST en [campaigns-api.php](routes/campaigns-api.php) bajo `auth:api`.
 
+> **Hoy no está cableada de punta a punta.** Nadie despacha `ProcessCampaignBatchJob` (los lotes se crean y se quedan en `pending`), el guard `api` no existe en [config/auth.php](config/auth.php), no hay `CampaignPolicy` (los `authorize('update', …)` siempre dan 403) y `CreateCampaignRequest` pide un permiso `create_campaign` que el seeder no crea. Antes de "usar" esta pila hay que conectar esas piezas; lo único de ella que corre en producción son los webhooks y el modelo `CampaignMessage`.
+
 ### 2. Twilio — pila legacy (`Whatsapp*`), la que usa la UI
 `WhatsappCampaign` + `WhatsappMessage` → `SendWhatsappCampaignMessage`, disparada desde `Livewire\Whatsapp\CampaignComposer` (la pantalla real de "WhatsApp Masivo").
 
@@ -77,8 +81,12 @@ API REST en [campaigns-api.php](routes/campaigns-api.php) bajo `auth:api`.
 
 La migración [`2026_03_16_refactor_campaign_architecture.php`](database/migrations/2026_03_16_refactor_campaign_architecture.php) renombró `whatsapp_campaigns`→`campaigns` y `whatsapp_messages`→`campaign_messages`.
 
+Estados que escribe la pila legacy y que la nueva no entiende: `CampaignComposer` guarda `campaigns.status = 'active'`, que **no** es un caso de `CampaignStatusEnum`; cargar esa fila con el modelo `Campaign` y leer `->status` lanza `ValueError`. `campaign_messages.status` en MySQL solo admite `pending, queued, accepted, sent, delivered, undelivered, failed, read` ([2026_03_17_expand_message_status_enum.php](database/migrations/2026_03_17_expand_message_status_enum.php)); cualquier otro valor (`created`, `sending`…) revienta por `strict => true`.
+
+`SendWhatsappWppconnectMessage` es código muerto: nadie lo despacha y lee `services.wppconnect.session`, que no existe.
+
 ### 3. WPPConnect — WhatsApp sin Twilio
-`WppCampaign` / `WppContact` / `WppMessage`, `WppCampaignService` + `SendWppMessage` (cola `wpp`, delay aleatorio 10–25 s por mensaje). UI en `Livewire\Wpp\CampaignUploader`.
+`WppCampaign` / `WppContact` / `WppMessage`, `WppCampaignService` + `SendWppMessage` (cola `wpp`, delay aleatorio 10–25 s por mensaje). UI en `Livewire\Wpp\CampaignUploader`. La API `POST /api/wpp/campaigns/send` exige `Authorization: Bearer` igual a `WPPCONNECT_API_TOKEN`; si está vacío, el endpoint queda cerrado (401).
 
 > El bloque `services.wppconnect` ya existe en [config/services.php](config/services.php), pero `WPPCONNECT_BASE_URL` y `WPPCONNECT_TOKEN` están vacíos en `.env`: sin ellos la pila no envía nada. Su link del sidebar está comentado.
 
@@ -103,7 +111,11 @@ El `statusCallback` que registran los jobs sale de `config('services.twilio.stat
 Twilio **no manda `ButtonPayload`** en estas plantillas: llega el texto del botón en `Body`. `ButtonIdEnum::fromText()` lo reconoce ignorando mayúsculas, tildes y emojis. Para cambiar los botones de una plantilla, se toca **solo** [ButtonIdEnum](app/Enums/ButtonIdEnum.php): ahí viven el mapa de textos, la etiqueta, el campo de conteo en `campaign_metrics` y el mensaje de agradecimiento.
 
 ### Cadena de eventos
-`CaptureButtonResponseAction` (deduplica por campaign+message+phone+button) → `ButtonResponseCaptured` → tres listeners: `LogButtonResponse`, `UpdateCampaignMetricsOnResponse`, `SendThankYouMessageOnButtonResponse` (envía el agradecimiento **directo a Twilio**, no vía job).
+`CaptureButtonResponseAction` (deduplica por campaign+message+phone+button) → `ButtonResponseCaptured` → tres listeners: `LogButtonResponse`, `UpdateCampaignMetricsOnResponse`, `SendThankYouMessageOnButtonResponse` (envía el agradecimiento **directo a Twilio**, no vía job, dentro de la misma petición del webhook).
+
+> Ojo: ante un duplicado, `CaptureButtonResponseAction` devuelve la fila **existente** y `ProcessTwilioWebhookAction` vuelve a disparar el evento, así que la deduplicación protege la tabla pero no las métricas ni el agradecimiento. Para saber si es nueva, usa `$response->wasRecentlyCreated`.
+>
+> El agradecimiento se guarda como un `CampaignMessage` más de la campaña, así que infla `total_messages` y las tasas de entrega/respuesta.
 
 > `EventServiceProvider` **no está registrado** en [bootstrap/providers.php](bootstrap/providers.php); los listeners funcionan por auto-discovery de Laravel 11+. Si agregas un listener, ponlo en `app/Listeners` con `handle()` tipado, o registra el provider.
 
@@ -112,6 +124,8 @@ Twilio **no manda `ButtonPayload`** en estas plantillas: llega el texto del bot�
 `spatie/laravel-permission` con roles **Administrador / Operador / Analista / Referidor** definidos en [RolesYPermisosSeeder.php](database/seeders/RolesYPermisosSeeder.php). Los aliases `role`, `permission`, `role_or_permission` se registran en [bootstrap/app.php](bootstrap/app.php).
 
 Patrón vigente — **doble verificación**: middleware `permission:x.y` en la ruta **y** `abort_unless(auth()->user()->can('x.y'), 403)` dentro del componente Livewire (en `mount()` o `render()`). Mantenlo en componentes nuevos; el middleware solo no protege peticiones Livewire posteriores.
+
+Varios permisos del seeder no se usan en ningún lado (`registros.ver_propios`, `registros.crear`, `registros.cambiar_estado`, `importados.importar|exportar|eliminar`, `usuarios.roles`, `referidores.eliminar|asignar_acceso`, `reportes.ver`): asignarlos no habilita nada. `Registrations\Edit` e `Index::saveEdit` chequean el **rol** `Administrador`, no el permiso `registros.editar` que pide la ruta.
 
 Al agregar un permiso: añádelo al array del seeder, asígnalo a los roles, protege la ruta, verifica dentro del componente y envuelve el link del sidebar en `@can` ([app-sidebar-layout.blade.php](resources/views/components/app-sidebar-layout.blade.php)).
 
@@ -132,3 +146,7 @@ Al agregar un permiso: añádelo al array del seeder, asígnalo a los roles, pro
 - `IMPLEMENTATION_GUIDE.md` es una nota de trabajo con TODOs; varios pasos ya se hicieron y otros no. No lo tomes como verdad, verifica contra el código.
 - **No declares `$queue` (ni `$connection`, `$delay`) como propiedad tipada en un Job.** Ya vienen del trait `Queueable` y redeclararlas tipadas es un **fatal error** de PHP que deja la clase sin cargar. Usa `$this->onQueue('...')` en el constructor.
 - `WhatsappCampaign`/`WhatsappMessage` y `Campaign`/`CampaignMessage` comparten tablas (ver arriba): es la deuda técnica más grande que queda.
+- **Carbon 3** (`nesbot/carbon` 3.x): `diffIn*()` devuelve un valor **con signo** y float. `$futuro->diffInMilliseconds(now())` es negativo. Por eso `CampaignRateLimiter::recordSend()` siempre devuelve 0. Usa `now()->diffInMilliseconds($futuro)` o `abs()`.
+- `MySQL` no corre en local por defecto y `php artisan migrate:status` falla con "conexión denegada": los tests usan sqlite y no detectan problemas de ENUM ni de `TIMESTAMPDIFF` (usado en `CampaignMetrics::recalcular()`, que solo existe en MySQL).
+- `referidos:volcar-importados` ([VolcarImportadosACommand](app/Console/Commands/VolcarImportadosACommand.php)) y [database/sql/volcar-importados.sql](database/sql/volcar-importados.sql) copian el padrón a `public_registrations` con un referidor **al azar** y sin ninguna marca de origen: esas filas no se distinguen de los registros orgánicos y alimentan el ranking de referidores del dashboard.
+- El dashboard ([Stats](app/Livewire/Dashboard/Stats.php)) y su export ([DashboardExportController](app/Http/Controllers/DashboardExportController.php)) calculan distinto: el export ignora los municipios legacy y mete a los menores de 18 en `61+`.

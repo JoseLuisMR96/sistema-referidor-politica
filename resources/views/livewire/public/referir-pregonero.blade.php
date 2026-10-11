@@ -28,8 +28,6 @@
                 <div class="mt-6 rounded-xl border bg-gray-50 p-4">
                     <div class="text-sm text-gray-600">
                         Referido por: <span class="font-semibold text-gray-900">{{ $referidor->nombre }}</span>
-                        <span class="text-gray-500">•</span>
-                        <span class="text-gray-700">CC {{ $referidor->cedula }}</span>
                     </div>
                     <div class="text-xs text-gray-500 mt-1">
                         Link público validado por ID único.

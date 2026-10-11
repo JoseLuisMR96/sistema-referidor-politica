@@ -29,6 +29,11 @@ class WhatsappOutboxManager extends Component
         'errors' => [],
     ];
 
+    public function mount(): void
+    {
+        abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+    }
+
     protected function rules(): array
     {
         return [
@@ -50,6 +55,8 @@ class WhatsappOutboxManager extends Component
 
     public function import(): void
     {
+        abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+
         $this->validate();
 
         $this->importSummary = ['inserted' => 0, 'skipped' => 0, 'errors' => []];
@@ -197,6 +204,8 @@ class WhatsappOutboxManager extends Component
 
     public function cancel(int $id): void
     {
+        abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+
         WhatsAppOutbox::query()
             ->where('id', $id)
             ->whereIn('status', ['PENDING'])

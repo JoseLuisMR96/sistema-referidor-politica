@@ -28,6 +28,8 @@ class Show extends Component
 
     public function mount(ReferidorPregonero $referidor): void
     {
+        abort_unless(auth()->user()->can('pregoneros_referidores.ver'), 403);
+
         $this->referidor = $referidor;
     }
 

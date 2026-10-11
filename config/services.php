@@ -50,6 +50,10 @@ return [
         'delay_min_seconds' => (int) env('WPPCONNECT_DELAY_MIN_SECONDS', 10),
         'delay_max_seconds' => (int) env('WPPCONNECT_DELAY_MAX_SECONDS', 25),
         'campaign_image_url' => env('WPPCONNECT_CAMPAIGN_IMAGE_URL'),
+
+        // Token que deben mandar los clientes de POST /api/wpp/campaigns/send
+        // (Authorization: Bearer …). Vacío = endpoint cerrado.
+        'api_token' => env('WPPCONNECT_API_TOKEN'),
     ],
 
     'retell' => [
