@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
  *
  * Es idempotente: omite las cédulas que ya existen en el destino, así que se
  * puede volver a correr sin duplicar. La atribución de referidores es aleatoria
- * entre los códigos indicados.
+ * entre los códigos indicados, por eso las filas quedan con origen = 'importado'.
  */
 class VolcarImportadosACommand extends Command
 {
@@ -114,6 +114,8 @@ class VolcarImportadosACommand extends Command
                     'referrer_id' => $referidor->id,
                     'ref_code_used' => $referidor->code,
                     'status' => (string) $this->option('status'),
+                    // Marca para distinguirlos de los registros reales del formulario
+                    'origen' => 'importado',
                     'created_by_user_id' => $persona->created_by_user_id,
                     'created_at' => $ahora,
                     'updated_at' => $ahora,

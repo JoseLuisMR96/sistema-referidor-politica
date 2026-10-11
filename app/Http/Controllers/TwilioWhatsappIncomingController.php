@@ -29,7 +29,6 @@ class TwilioWhatsappIncomingController extends Controller
         }
 
         Log::info('Mensaje entrante de Twilio', [
-            'from' => $params['From'],
             'message_id' => $params['MessageSid'],
         ]);
 

@@ -76,7 +76,10 @@ class ProcessTwilioWebhookAction
 
         $response = $this->captureButton->execute($dto);
 
-        if ($response) {
+        // Solo respuestas nuevas: ante un duplicado la Action devuelve la fila
+        // existente y re-disparar el evento contaba el voto otra vez y
+        // reenviaba (y cobraba) el agradecimiento.
+        if ($response?->wasRecentlyCreated) {
             ButtonResponseCaptured::dispatch($response);
         }
 

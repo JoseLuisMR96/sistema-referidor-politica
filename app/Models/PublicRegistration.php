@@ -22,7 +22,8 @@ class PublicRegistration extends Model
         'referrer_id',
         'ref_code_used',
         'status',
-        'created_by_user_id'
+        'created_by_user_id',
+        'origen',                       // formulario | importado
     ];
 
     public function referrer()

@@ -39,7 +39,11 @@ class UserCreate extends Component
             'password' => Hash::make($data['password']),
         ]);
 
-        $user->syncRoles($data['roles'] ?? []);
+        // Asignar roles es escalar privilegios: requiere su propio permiso
+        if (! empty($data['roles'])) {
+            abort_unless(auth()->user()->can('usuarios.roles'), 403);
+            $user->syncRoles($data['roles']);
+        }
 
         session()->flash('success', 'Usuario creado correctamente.');
         $this->reset(['name', 'email', 'password', 'password_confirmation', 'roles']);

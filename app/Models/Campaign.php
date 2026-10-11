@@ -198,8 +198,9 @@ class Campaign extends Model
      */
     public function getDeliveredCount(): int
     {
+        // 'read' implica entregado
         return $this->messages()
-            ->where('status', 'delivered')
+            ->whereIn('status', ['delivered', 'read'])
             ->count();
     }
 
@@ -219,7 +220,7 @@ class Campaign extends Model
     public function getSentCount(): int
     {
         return $this->messages()
-            ->whereIn('status', ['sent', 'delivered'])
+            ->whereIn('status', ['sent', 'delivered', 'read'])
             ->count();
     }
 

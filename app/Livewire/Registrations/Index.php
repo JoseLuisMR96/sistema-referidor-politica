@@ -45,7 +45,9 @@ class Index extends Component
 
     private function authorizeAdminOnly(): void
     {
-        abort_unless(auth()->check() && auth()->user()->hasRole('Administrador'), 403);
+        // Mismo permiso que la ruta de edición (antes pedía el rol
+        // Administrador y el Operador, que tiene registros.editar, recibía 403).
+        abort_unless(auth()->user()?->can('registros.editar'), 403);
     }
 
     public function updatedSearch(): void
@@ -139,7 +141,7 @@ class Index extends Component
             'referrers' => Referrer::orderBy('name')->get(),
 
             // Útil para la vista: mostrar/ocultar botones
-            'isAdmin' => auth()->check() && auth()->user()->hasRole('Administrador'),
+            'isAdmin' => (bool) auth()->user()?->can('registros.editar'),
         ]);
     }
 }

@@ -25,7 +25,7 @@ class TwilioWhatsappStatusController extends Controller
 
         Log::info('Webhook Twilio (status) recibido', [
             'message_status' => $params['MessageStatus'] ?? null,
-            'from' => $params['From'] ?? null,
+            'message_sid' => $params['MessageSid'] ?? null,
         ]);
 
         try {

@@ -92,7 +92,8 @@ class CampaignMessage extends Model
      */
     public function scopeDelivered($query)
     {
-        return $query->where('status', 'delivered');
+        // 'read' implica entregado
+        return $query->whereIn('status', ['delivered', 'read']);
     }
 
     /**

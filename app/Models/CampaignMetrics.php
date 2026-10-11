@@ -57,8 +57,9 @@ class CampaignMetrics extends Model
         $campaign = $this->campaign;
 
         $totalMessages = $campaign->messages()->count();
-        $sentCount = $campaign->messages()->whereIn('status', ['sent', 'delivered'])->count();
-        $deliveredCount = $campaign->messages()->where('status', 'delivered')->count();
+        // 'read' implica entregado (y enviado)
+        $sentCount = $campaign->messages()->whereIn('status', ['sent', 'delivered', 'read'])->count();
+        $deliveredCount = $campaign->messages()->whereIn('status', ['delivered', 'read'])->count();
         $failedCount = $campaign->messages()->whereIn('status', ['failed', 'undelivered'])->count();
 
         $totalResponses = $campaign->responses()->count();
@@ -75,11 +76,12 @@ class CampaignMetrics extends Model
 
         // Calcular tiempos promedio
         $deliveryTimes = $campaign->messages()
-            ->where('status', 'delivered')
+            ->whereIn('status', ['delivered', 'read'])
             ->whereNotNull('delivered_at')
             ->whereNotNull('sent_at')
-            ->selectRaw('TIMESTAMPDIFF(SECOND, sent_at, delivered_at) as seconds')
-            ->pluck('seconds');
+            ->get(['sent_at', 'delivered_at'])
+            // En PHP y no con TIMESTAMPDIFF, que solo existe en MySQL
+            ->map(fn (CampaignMessage $m) => max(0, (int) $m->sent_at->diffInSeconds($m->delivered_at)));
 
         $avgDeliveryTime = $deliveryTimes->isEmpty() ? null : intval($deliveryTimes->avg());
         $fastestDelivery = $deliveryTimes->isEmpty() ? null : intval($deliveryTimes->min());

@@ -16,6 +16,16 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Detrás de un proxy/balanceador que termina HTTPS hay que confiar en
+        // él: si no, fullUrl() sale con http:// y la firma de Twilio nunca
+        // valida, y request()->ip() es la del proxy para todos (rompe el
+        // rate limit de los formularios públicos). Vacío = sin cambios.
+        // Ej.: TRUSTED_PROXIES=* o TRUSTED_PROXIES=10.0.0.1,10.0.0.2
+        $proxies = env('TRUSTED_PROXIES');
+        if ($proxies) {
+            $middleware->trustProxies(at: $proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        }
+
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,

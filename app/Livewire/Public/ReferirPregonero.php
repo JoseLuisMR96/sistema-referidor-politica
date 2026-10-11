@@ -4,6 +4,7 @@ namespace App\Livewire\Public;
 
 use App\Models\ReferidorPregonero;
 use App\Models\ReferidoPregonero;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -18,6 +19,8 @@ class ReferirPregonero extends Component
     public string $puesto_votacion = '';
 
     public bool $enviado = false;
+
+    private const MAX_ENVIOS_POR_MINUTO = 30;
 
     public function mount(string $id_unico): void
     {
@@ -60,6 +63,16 @@ class ReferirPregonero extends Component
 
     public function guardar(): void
     {
+        // Formulario público: limita los envíos por IP para frenar spam.
+        $key = 'referir-pregonero:'.request()->ip();
+
+        if (RateLimiter::tooManyAttempts($key, self::MAX_ENVIOS_POR_MINUTO)) {
+            $this->addError('general', 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.');
+            return;
+        }
+
+        RateLimiter::hit($key, 60);
+
         // Revalidar por si el referidor se borró entre mount y submit
         $this->loadReferidor();
 

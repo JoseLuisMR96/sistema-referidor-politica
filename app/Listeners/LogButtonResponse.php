@@ -19,7 +19,6 @@ class LogButtonResponse
             'campaign_id' => $response->campaign_id,
             'button_id' => $response->button_id,
             'button_label' => $response->getButtonLabel(),
-            'phone' => $response->phone,
             'referrer_id' => $response->referrer_id,
             'referidor_pregonero_id' => $response->referidor_pregonero_id,
             'response_timestamp' => $response->response_timestamp,

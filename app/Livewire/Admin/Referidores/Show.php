@@ -26,6 +26,9 @@ class Show extends Component
     #[Url]
     public string $sortDirection = 'desc';
 
+    // sortField y sortDirection vienen de la URL: solo se aceptan estas columnas
+    private const ORDENABLES = ['nombre', 'cedula', 'puesto_votacion', 'created_at'];
+
     public function mount(ReferidorPregonero $referidor): void
     {
         abort_unless(auth()->user()->can('pregoneros_referidores.ver'), 403);
@@ -67,7 +70,10 @@ class Show extends Component
                        ->orWhere('puesto_votacion', 'like', "%{$q}%");
                 });
             })
-            ->orderBy($this->sortField, $this->sortDirection)
+            ->orderBy(
+                in_array($this->sortField, self::ORDENABLES, true) ? $this->sortField : 'created_at',
+                $this->sortDirection === 'asc' ? 'asc' : 'desc',
+            )
             ->paginate($this->perPage);
 
         return view('livewire.admin.referidores.show', [

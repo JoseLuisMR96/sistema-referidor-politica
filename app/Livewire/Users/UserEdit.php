@@ -24,6 +24,8 @@ class UserEdit extends Component
 
     public function mount(User $user): void
     {
+        abort_unless(auth()->user()->can('usuarios.editar'), 403);
+
         $this->user = $user;
 
         $this->name = $user->name;
@@ -53,6 +55,8 @@ class UserEdit extends Component
 
     public function update(): void
     {
+        abort_unless(auth()->user()->can('usuarios.editar'), 403);
+
         $this->validate();
 
         $this->user->update([
@@ -70,9 +74,12 @@ class UserEdit extends Component
             $this->password_confirmation = '';
         }
 
-        // Sincroniza roles por IDs -> nombres
-        $roles = Role::query()->whereIn('id', $this->roleIds)->pluck('name')->toArray();
-        $this->user->syncRoles($roles);
+        // Sincroniza roles por IDs -> nombres. Cambiar roles es escalar
+        // privilegios: sin usuarios.roles se ignora lo que venga del form.
+        if (auth()->user()->can('usuarios.roles')) {
+            $roles = Role::query()->whereIn('id', $this->roleIds)->pluck('name')->toArray();
+            $this->user->syncRoles($roles);
+        }
 
         session()->flash('success', 'Usuario actualizado correctamente.');
     }

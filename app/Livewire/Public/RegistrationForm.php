@@ -9,6 +9,7 @@ use App\Models\Departamento;
 use Illuminate\Validation\Rule;
 use App\Models\PublicRegistration;
 use Livewire\Attributes\Locked;
+use Illuminate\Support\Facades\RateLimiter;
 
 class RegistrationForm extends Component
 {
@@ -33,6 +34,8 @@ class RegistrationForm extends Component
     public bool $enviado = false;
 
     public string $debug = '';
+
+    private const MAX_ENVIOS_POR_MINUTO = 30;
 
     protected $queryString = [
         'ref' => ['except' => ''],
@@ -140,6 +143,17 @@ class RegistrationForm extends Component
 
     public function submit(): void
     {
+        // Formulario público: limita los envíos por IP para frenar spam y que
+        // no se pueda consultar en masa si una cédula ya está registrada.
+        $key = 'registro-publico:'.request()->ip();
+
+        if (RateLimiter::tooManyAttempts($key, self::MAX_ENVIOS_POR_MINUTO)) {
+            $this->addError('ref', 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.');
+            return;
+        }
+
+        RateLimiter::hit($key, 60);
+
         // Guarda el ref antes de cualquier cosa
         $refCode = $this->ref;
 

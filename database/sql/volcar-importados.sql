@@ -13,6 +13,32 @@
 
 
 -- ###########################################################################
+-- BLOQUE 0 — (OPCIONAL, UNA SOLA VEZ) MARCAR VOLCADOS ANTERIORES.
+--
+-- Requiere la migración 2026_10_11_000000_add_origen_to_public_registrations.
+-- Los volcados hechos antes de esa migración quedaron con origen='formulario'.
+-- Mismo criterio que el bloque 4: cédula del padrón + uno de los 3 códigos.
+-- Corre el SELECT, confirma el número y luego el UPDATE.
+-- ###########################################################################
+
+-- SELECT COUNT(*) AS se_marcarian
+-- FROM public_registrations p
+-- WHERE p.document_type = 'CC'
+--   AND p.origen = 'formulario'
+--   AND p.ref_code_used IN ('MV31PAS1', 'FAM7CCQI', 'PHPZKJW7')
+--   AND EXISTS (SELECT 1 FROM imported_people i
+--               WHERE i.document_number = p.document_number);
+
+-- UPDATE public_registrations p
+-- SET p.origen = 'importado'
+-- WHERE p.document_type = 'CC'
+--   AND p.origen = 'formulario'
+--   AND p.ref_code_used IN ('MV31PAS1', 'FAM7CCQI', 'PHPZKJW7')
+--   AND EXISTS (SELECT 1 FROM imported_people i
+--               WHERE i.document_number = p.document_number);
+
+
+-- ###########################################################################
 -- BLOQUE 1 — VERIFICAR.  Obligatorio: no sigas si algo no cuadra.
 -- ###########################################################################
 
@@ -50,7 +76,7 @@ INSERT INTO public_registrations
     (full_name, document_type, document_number, age, gender,
      residence_municipality, voting_municipality,
      residence_municipality_id, voting_municipality_id,
-     phone, referrer_id, ref_code_used, status,
+     phone, referrer_id, ref_code_used, status, origen,
      created_by_user_id, created_at, updated_at)
 SELECT
     s.full_name,
@@ -66,6 +92,7 @@ SELECT
     r.id,
     r.code,
     'pendiente',
+    'importado',                       -- origen: no vino del formulario
     s.created_by_user_id,
     NOW(),
     NOW()

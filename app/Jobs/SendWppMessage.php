@@ -53,8 +53,15 @@ class SendWppMessage implements ShouldQueue
                     $imageUrl,
                     $message->message
                 );
-            } else {
+            } elseif (config('services.wppconnect.campaign_image_url')) {
                 $response = $service->sendCampaignImageWithText(
+                    $campaign->session,
+                    $message->phone,
+                    $message->message
+                );
+            } else {
+                // Sin imagen de campaña ni imagen global: solo texto.
+                $response = $service->sendMessage(
                     $campaign->session,
                     $message->phone,
                     $message->message
