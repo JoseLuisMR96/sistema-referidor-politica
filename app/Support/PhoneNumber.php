@@ -6,7 +6,7 @@ namespace App\Support;
  * Normalización de números telefónicos.
  *
  * Fuente única de verdad: antes esta lógica estaba duplicada (con reglas
- * ligeramente distintas) en CreateCampaignAction, WppCampaignService,
+ * ligeramente distintas) en varios jobs, WppCampaignService,
  * WppConnectService y SendThankYouMessageOnButtonResponse.
  */
 class PhoneNumber

@@ -32,7 +32,14 @@ class Stats extends Component
         $this->ultimos7 = PublicRegistration::where('created_at', '>=', now()->subDays(7))->count();
 
         $this->topReferrers = Referrer::query()
-            ->leftJoin('public_registrations', 'referrers.id', '=', 'public_registrations.referrer_id')
+            // El ranking solo cuenta registros reales del formulario: los
+            // importados del padrón tienen el referidor asignado al azar.
+            // La condición va en el JOIN (no en WHERE) para no perder a los
+            // referidores con 0 registros.
+            ->leftJoin('public_registrations', function ($join) {
+                $join->on('referrers.id', '=', 'public_registrations.referrer_id')
+                    ->where('public_registrations.origen', '!=', 'importado');
+            })
             ->select(
                 'referrers.id',
                 'referrers.name',

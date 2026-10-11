@@ -49,17 +49,16 @@ composer test   # suite de PHPUnit
 ## Colas
 
 Los envíos masivos son asíncronos. En producción hacen falta workers activos
-(idealmente bajo supervisor); sin ellos no salen mensajes ni agradecimientos:
+(idealmente bajo supervisor); sin ellos no salen los mensajes de campaña. Los
+agradecimientos a las respuestas de botones salen directo desde el webhook.
 
 ```bash
-php artisan queue:work --queue=campaigns --max-jobs=10 --max-time=3600
-php artisan queue:work --queue=messages  --max-jobs=50 --max-time=3600
 php artisan queue:work --queue=wpp
 php artisan queue:work --queue=whatsapp
 ```
 
 `QUEUE_CONNECTION=sync` (útil en local) ejecuta los jobs dentro de la misma
-petición y no respeta el rate limiting: no usarlo en producción.
+petición e ignora los retrasos entre mensajes: no usarlo en producción.
 
 ## Webhooks de Twilio
 
@@ -79,5 +78,3 @@ Detalle del flujo y troubleshooting en [WEBHOOK_SETUP.md](WEBHOOK_SETUP.md).
 
 - [CLAUDE.md](CLAUDE.md) — arquitectura, convenciones y trampas conocidas.
 - [WEBHOOK_SETUP.md](WEBHOOK_SETUP.md) — configuración y pruebas de webhooks.
-- [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) — notas de la refactorización
-  de campañas (documento de trabajo, no todo está vigente).

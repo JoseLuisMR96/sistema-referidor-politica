@@ -40,14 +40,6 @@ class Campaign extends Model
     }
 
     /**
-     * Lotes de procesamiento para control de velocidad
-     */
-    public function batches(): HasMany
-    {
-        return $this->hasMany(CampaignBatch::class);
-    }
-
-    /**
      * Respuestas de botones capturadas desde webhooks
      */
     public function responses(): HasMany
@@ -142,38 +134,6 @@ class Campaign extends Model
     }
 
     // ===== MÉTODOS =====
-
-    /**
-     * Pausa la campaña
-     */
-    public function pause(): void
-    {
-        if (!$this->status->canPause()) {
-            throw new \RuntimeException("No se puede pausar campaña con estado: {$this->status->label()}");
-        }
-
-        $this->update(['status' => CampaignStatusEnum::PAUSED]);
-    }
-
-    /**
-     * Reanuda campaña pausada
-     */
-    public function resume(): void
-    {
-        if (!$this->status->canResume()) {
-            throw new \RuntimeException("No se puede reanudar campaña con estado: {$this->status->label()}");
-        }
-
-        $this->update(['status' => CampaignStatusEnum::BATCHED]);
-    }
-
-    /**
-     * Cancela la campaña
-     */
-    public function cancel(): void
-    {
-        $this->update(['status' => CampaignStatusEnum::CANCELLED]);
-    }
 
     /**
      * Obtiene estadísticas de respuestas por botón

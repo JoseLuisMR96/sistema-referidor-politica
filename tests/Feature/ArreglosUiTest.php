@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Jobs\SendWhatsappCampaignMessage;
 use App\Livewire\Admin\Referidores\Index as ReferidoresIndex;
+use App\Livewire\Dashboard\Stats;
+use App\Models\Referrer;
 use App\Livewire\Public\ReferirPregonero;
 use App\Livewire\Registrations\Edit as RegistrationsEdit;
 use App\Livewire\Users\UserEdit;
@@ -202,6 +204,25 @@ class ArreglosUiTest extends TestCase
 
         $this->actingAs($admin)->get('/dashboard')->assertOk()->assertSee('Villavicencio');
         $this->actingAs($admin)->get('/dashboard/export/excel')->assertOk()->assertDownload('dashboard.xlsx');
+    }
+
+    public function test_ranking_de_referidores_excluye_importados(): void
+    {
+        $real = Referrer::create(['name' => 'Real', 'code' => 'REAL0001']);
+        $soloImportados = Referrer::create(['name' => 'Importado', 'code' => 'IMPO0001']);
+
+        $this->registro(['referrer_id' => $real->id]);
+        $this->registro(['referrer_id' => $real->id, 'origen' => 'importado']);
+        $this->registro(['referrer_id' => $soloImportados->id, 'origen' => 'importado']);
+
+        $ranking = Livewire::actingAs($this->usuarioConRol('Administrador'))
+            ->test(Stats::class)
+            ->get('topReferrers');
+
+        $this->assertSame(
+            ['REAL0001' => 1, 'IMPO0001' => 0],
+            collect($ranking)->pluck('total', 'code')->map(fn ($t) => (int) $t)->all(),
+        );
     }
 
     // --- Menores ---

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Retell\CallResultController;
 use App\Http\Controllers\TwilioWhatsappStatusController;
 use App\Http\Controllers\TwilioWhatsappIncomingController;
+use App\Http\Controllers\WhatsApp\WebhookController;
 use App\Http\Controllers\WhatsAppWorkerController;
 use App\Http\Controllers\WppCampaignController;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +20,11 @@ Route::middleware('twilio.signature')->group(function () {
 
     Route::post('/twilio/whatsapp/incoming', [TwilioWhatsappIncomingController::class, 'handle'])
         ->name('twilio.whatsapp.incoming');
+
+    // Se conserva por si Twilio quedó configurado con esta URL; hace lo mismo
+    // que las dos anteriores.
+    Route::post('/whatsapp/webhook/status', [WebhookController::class, 'handle'])
+        ->name('api.whatsapp.webhook.status');
 });
 
 Route::get('/whatsapp/pull', [WhatsAppWorkerController::class, 'pull'])
@@ -26,6 +32,3 @@ Route::get('/whatsapp/pull', [WhatsAppWorkerController::class, 'pull'])
 
 Route::post('/whatsapp/report', [WhatsAppWorkerController::class, 'report'])
     ->name('api.whatsapp.report');
-
-// Nuevas rutas para arquitectura de campañas refactorizada
-require base_path('routes/campaigns-api.php');
