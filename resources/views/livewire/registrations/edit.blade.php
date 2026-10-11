@@ -59,7 +59,7 @@
                     @endif
 
                     <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-semibold">
-                        Modo edición (solo Admin)
+                        Modo edición
                     </span>
                 </div>
             </div>
@@ -107,15 +107,43 @@
 
                 <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div class="rounded-lg border p-4">
-                        <div class="text-xs text-gray-500">Municipio donde reside</div>
-                        <input type="text" wire:model.defer="residence_municipality" class="mt-2 w-full rounded-md border-gray-300">
-                        @error('residence_municipality') <div class="text-xs text-rose-600 mt-1">{{ $message }}</div> @enderror
+                        <div class="text-xs text-gray-500">Donde reside</div>
+                        <select wire:model.live="residence_department_id" class="mt-2 w-full rounded-md border-gray-300">
+                            <option value="">— Departamento —</option>
+                            @foreach($departamentos as $d)
+                                <option value="{{ $d->id }}">{{ $d->nombre }}</option>
+                            @endforeach
+                        </select>
+                        <select wire:model.defer="residence_municipality_id" class="mt-2 w-full rounded-md border-gray-300">
+                            <option value="">— Municipio —</option>
+                            @foreach($this->municipiosResidencia as $m)
+                                <option value="{{ $m->id }}">{{ $m->nombre }}</option>
+                            @endforeach
+                        </select>
+                        @error('residence_municipality_id') <div class="text-xs text-rose-600 mt-1">{{ $message }}</div> @enderror
+                        @if(! $residence_municipality_id && $legacy_residence !== '')
+                            <div class="text-xs text-amber-700 mt-1">Texto anterior (sin catálogo): {{ $legacy_residence }}</div>
+                        @endif
                     </div>
 
                     <div class="rounded-lg border p-4">
-                        <div class="text-xs text-gray-500">Municipio donde vota</div>
-                        <input type="text" wire:model.defer="voting_municipality" class="mt-2 w-full rounded-md border-gray-300">
-                        @error('voting_municipality') <div class="text-xs text-rose-600 mt-1">{{ $message }}</div> @enderror
+                        <div class="text-xs text-gray-500">Donde vota</div>
+                        <select wire:model.live="voting_department_id" class="mt-2 w-full rounded-md border-gray-300">
+                            <option value="">— Departamento —</option>
+                            @foreach($departamentos as $d)
+                                <option value="{{ $d->id }}">{{ $d->nombre }}</option>
+                            @endforeach
+                        </select>
+                        <select wire:model.defer="voting_municipality_id" class="mt-2 w-full rounded-md border-gray-300">
+                            <option value="">— Municipio —</option>
+                            @foreach($this->municipiosVoto as $m)
+                                <option value="{{ $m->id }}">{{ $m->nombre }}</option>
+                            @endforeach
+                        </select>
+                        @error('voting_municipality_id') <div class="text-xs text-rose-600 mt-1">{{ $message }}</div> @enderror
+                        @if(! $voting_municipality_id && $legacy_voting !== '')
+                            <div class="text-xs text-amber-700 mt-1">Texto anterior (sin catálogo): {{ $legacy_voting }}</div>
+                        @endif
                     </div>
                 </div>
             </div>

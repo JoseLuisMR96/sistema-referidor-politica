@@ -26,6 +26,9 @@ class Index extends Component
     public string $sortField = 'created_at';
     public string $sortDirection = 'desc';
 
+    // sortField y sortDirection vienen de la URL: solo se aceptan estas columnas
+    private const ORDENABLES = ['nombre', 'cedula', 'celular', 'puesto_votacion', 'created_at'];
+
     public function updatingSearch(): void
     {
         $this->resetPage();
@@ -65,7 +68,10 @@ class Index extends Component
                 });
             })
             ->withCount('referidos')
-            ->orderBy($this->sortField, $this->sortDirection)
+            ->orderBy(
+                in_array($this->sortField, self::ORDENABLES, true) ? $this->sortField : 'created_at',
+                $this->sortDirection === 'asc' ? 'asc' : 'desc',
+            )
             ->paginate($this->perPage);
 
         return view('livewire.admin.referidores.index', compact('referidores'));

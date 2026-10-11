@@ -3,6 +3,7 @@
 use App\Http\Controllers\Retell\CallResultController;
 use App\Http\Controllers\TwilioWhatsappStatusController;
 use App\Http\Controllers\TwilioWhatsappIncomingController;
+use App\Http\Controllers\WhatsApp\WebhookController;
 use App\Http\Controllers\WhatsAppWorkerController;
 use App\Http\Controllers\WppCampaignController;
 use Illuminate\Support\Facades\Route;
@@ -12,17 +13,22 @@ Route::post('/retell/call-result', [CallResultController::class, 'store'])
 
 Route::post('/wpp/campaigns/send', [WppCampaignController::class, 'send']);
 
-Route::post('/twilio/whatsapp/status', [TwilioWhatsappStatusController::class, 'handle'])
-    ->name('twilio.whatsapp.status');
+// Webhooks de Twilio: siempre detrás de la validación de firma.
+Route::middleware('twilio.signature')->group(function () {
+    Route::post('/twilio/whatsapp/status', [TwilioWhatsappStatusController::class, 'handle'])
+        ->name('twilio.whatsapp.status');
 
-Route::post('/twilio/whatsapp/incoming', [TwilioWhatsappIncomingController::class, 'handle'])
-    ->name('twilio.whatsapp.incoming');
+    Route::post('/twilio/whatsapp/incoming', [TwilioWhatsappIncomingController::class, 'handle'])
+        ->name('twilio.whatsapp.incoming');
+
+    // Se conserva por si Twilio quedó configurado con esta URL; hace lo mismo
+    // que las dos anteriores.
+    Route::post('/whatsapp/webhook/status', [WebhookController::class, 'handle'])
+        ->name('api.whatsapp.webhook.status');
+});
 
 Route::get('/whatsapp/pull', [WhatsAppWorkerController::class, 'pull'])
     ->name('api.whatsapp.pull');
 
 Route::post('/whatsapp/report', [WhatsAppWorkerController::class, 'report'])
     ->name('api.whatsapp.report');
-
-// Nuevas rutas para arquitectura de campañas refactorizada
-require base_path('routes/campaigns-api.php');

@@ -36,17 +36,21 @@ class CaptureButtonResponseAction
                 return null;
             }
 
-            // 2. Buscar respuesta duplicada (idempotencia)
+            // 2. Una sola respuesta por persona y campaña: la primera gana.
+            //    Cubre el reintento de Twilio, el doble toque del mismo botón
+            //    y que la persona pulse otro candidato después.
+            //    Se devuelve la fila existente (wasRecentlyCreated = false) para
+            //    que quien llama NO vuelva a disparar el evento.
             $existing = WhatsAppCampaignResponse::query()
                 ->where('campaign_id', $dto->campaignId)
-                ->where('campaign_message_id', $dto->campaignMessageId)
                 ->where('phone', $dto->phone)
-                ->where('button_id', $dto->buttonId)
                 ->first();
 
             if ($existing) {
-                Log::info('Duplicate button response detected and ignored', [
+                Log::info('Respuesta repetida ignorada', [
                     'response_id' => $existing->id,
+                    'button_id_original' => $existing->button_id,
+                    'button_id_nuevo' => $dto->buttonId,
                 ]);
                 return $existing;
             }
@@ -79,7 +83,8 @@ class CaptureButtonResponseAction
         } catch (\Exception $e) {
             Log::error('Error capturing button response', [
                 'error' => $e->getMessage(),
-                'dto' => (array) $dto,
+                'campaign_id' => $dto->campaignId,
+                'message_id' => $dto->campaignMessageId,
             ]);
             return null;
         }

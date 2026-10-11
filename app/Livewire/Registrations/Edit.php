@@ -3,6 +3,8 @@
 namespace App\Livewire\Registrations;
 
 use Livewire\Component;
+use App\Models\Departamento;
+use App\Models\Municipio;
 use App\Models\PublicRegistration;
 use App\Models\Referrer;
 
@@ -16,13 +18,23 @@ class Edit extends Component
     public string $document_number = '';
     public $age = null;
     public string $gender = '';
-    public string $residence_municipality = '';
-    public string $voting_municipality = '';
     public $referrer_id = null;
+
+    // El municipio se edita por FK: el dashboard cuenta por FK y el texto
+    // legacy solo cuando la FK es nula, así que editar solo el texto no
+    // cambiaba nada en las métricas.
+    public ?int $residence_department_id = null;
+    public ?int $voting_department_id = null;
+    public ?int $residence_municipality_id = null;
+    public ?int $voting_municipality_id = null;
+
+    // Texto legacy, solo informativo para registros viejos sin FK
+    public string $legacy_residence = '';
+    public string $legacy_voting = '';
 
     public function mount(PublicRegistration $publicRegistration): void
     {
-        abort_unless(auth()->user()?->hasRole('Administrador'), 403);
+        abort_unless(auth()->user()->can('registros.editar'), 403);
 
         $this->publicRegistration = $publicRegistration;
 
@@ -32,9 +44,60 @@ class Edit extends Component
         $this->document_number = (string) $publicRegistration->document_number;
         $this->age = $publicRegistration->age;
         $this->gender = (string) ($publicRegistration->gender ?? '');
-        $this->residence_municipality = (string) ($publicRegistration->residence_municipality ?? '');
-        $this->voting_municipality = (string) ($publicRegistration->voting_municipality ?? '');
         $this->referrer_id = $publicRegistration->referrer_id;
+
+        $this->residence_municipality_id = $publicRegistration->residence_municipality_id;
+        $this->voting_municipality_id = $publicRegistration->voting_municipality_id;
+
+        $this->residence_department_id = $this->departamentoDe($this->residence_municipality_id);
+        $this->voting_department_id = $this->departamentoDe($this->voting_municipality_id);
+
+        $this->legacy_residence = (string) ($publicRegistration->residence_municipality ?? '');
+        $this->legacy_voting = (string) ($publicRegistration->voting_municipality ?? '');
+    }
+
+    private function departamentoDe(?int $municipioId): ?int
+    {
+        if (! $municipioId) {
+            return null;
+        }
+
+        $id = Municipio::query()->whereKey($municipioId)->value('departamento_id');
+
+        return $id ? (int) $id : null;
+    }
+
+    public function updated($property): void
+    {
+        if ($property === 'residence_department_id') {
+            $this->residence_municipality_id = null;
+        }
+
+        if ($property === 'voting_department_id') {
+            $this->voting_municipality_id = null;
+        }
+    }
+
+    public function getMunicipiosResidenciaProperty()
+    {
+        return $this->municipiosDe($this->residence_department_id);
+    }
+
+    public function getMunicipiosVotoProperty()
+    {
+        return $this->municipiosDe($this->voting_department_id);
+    }
+
+    private function municipiosDe(?int $departamentoId)
+    {
+        if (! $departamentoId) {
+            return collect();
+        }
+
+        return Municipio::query()
+            ->where('departamento_id', $departamentoId)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre']);
     }
 
     protected function rules(): array
@@ -46,29 +109,40 @@ class Edit extends Component
             'document_number' => ['required', 'string', 'max:30'],
             'age' => ['nullable', 'integer', 'min:0', 'max:120'],
             'gender' => ['nullable', 'string', 'max:30'],
-            'residence_municipality' => ['nullable', 'string', 'max:120'],
-            'voting_municipality' => ['nullable', 'string', 'max:120'],
             'referrer_id' => ['nullable', 'integer', 'exists:referrers,id'],
+            'residence_municipality_id' => ['nullable', 'integer', 'exists:municipios,id'],
+            'voting_municipality_id' => ['nullable', 'integer', 'exists:municipios,id'],
         ];
     }
 
     public function update(): void
     {
-        abort_unless(auth()->user()?->hasRole('Administrador'), 403);
+        abort_unless(auth()->user()->can('registros.editar'), 403);
 
         $this->validate();
 
-        $this->publicRegistration->update([
+        $data = [
             'full_name' => $this->full_name,
             'phone' => $this->phone !== '' ? $this->phone : null,
             'document_type' => $this->document_type !== '' ? $this->document_type : null,
             'document_number' => $this->document_number,
             'age' => $this->age !== '' ? $this->age : null,
             'gender' => $this->gender !== '' ? $this->gender : null,
-            'residence_municipality' => $this->residence_municipality !== '' ? $this->residence_municipality : null,
-            'voting_municipality' => $this->voting_municipality !== '' ? $this->voting_municipality : null,
             'referrer_id' => $this->referrer_id ?: null,
-        ]);
+            'residence_municipality_id' => $this->residence_municipality_id ?: null,
+            'voting_municipality_id' => $this->voting_municipality_id ?: null,
+        ];
+
+        // Mantener el texto legacy alineado con la FK elegida
+        if ($this->residence_municipality_id) {
+            $data['residence_municipality'] = Municipio::query()->whereKey($this->residence_municipality_id)->value('nombre');
+        }
+
+        if ($this->voting_municipality_id) {
+            $data['voting_municipality'] = Municipio::query()->whereKey($this->voting_municipality_id)->value('nombre');
+        }
+
+        $this->publicRegistration->update($data);
 
         session()->flash('success', 'Registro actualizado correctamente.');
     }
@@ -77,6 +151,7 @@ class Edit extends Component
     {
         return view('livewire.registrations.edit', [
             'referrers' => Referrer::orderBy('name')->get(),
+            'departamentos' => Departamento::query()->orderBy('nombre')->get(['id', 'nombre']),
         ]);
     }
 }

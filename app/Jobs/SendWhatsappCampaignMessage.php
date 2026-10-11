@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\WhatsappCampaign;
 use App\Models\WhatsappMessage;
+use App\Support\PhoneNumber;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -35,7 +36,7 @@ class SendWhatsappCampaignMessage implements ShouldQueue
 
         $payload = [
             'messagingServiceSid' => $msid,
-            'statusCallback'      => url('/api/twilio/whatsapp/status'),
+            'statusCallback'      => url(config('services.twilio.status_callback_path')),
         ];
 
         try {
@@ -116,8 +117,8 @@ class SendWhatsappCampaignMessage implements ShouldQueue
 
     private function normalizeTo(string $to): string
     {
-        $t = trim($to);
-        return str_starts_with($t, 'whatsapp:') ? $t : 'whatsapp:' . $t;
+        return PhoneNumber::toWhatsApp($to)
+            ?? throw new \RuntimeException("Número inválido: {$to}");
     }
 
     private function buildBody(WhatsappCampaign $campaign, WhatsappMessage $msgRow): string

@@ -51,6 +51,7 @@ class RolesYPermisosSeeder extends Seeder
 
             // Referidores pregoneros
             'pregoneros_referidos.ver',
+            'pregoneros_referidos.exportar',
             'pregoneros_referidores.ver',
             'pregoneros_referidores.crear',
             'pregoneros_referidores.editar',

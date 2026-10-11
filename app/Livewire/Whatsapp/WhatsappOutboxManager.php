@@ -3,6 +3,7 @@
 namespace App\Livewire\Whatsapp;
 
 use App\Models\WhatsAppOutbox;
+use App\Support\PhoneNumber;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -29,6 +30,11 @@ class WhatsappOutboxManager extends Component
         'errors' => [],
     ];
 
+    public function mount(): void
+    {
+        abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+    }
+
     protected function rules(): array
     {
         return [
@@ -50,6 +56,8 @@ class WhatsappOutboxManager extends Component
 
     public function import(): void
     {
+        abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+
         $this->validate();
 
         $this->importSummary = ['inserted' => 0, 'skipped' => 0, 'errors' => []];
@@ -74,7 +82,6 @@ class WhatsappOutboxManager extends Component
 
         $phoneIdx = $idx('phone');
         $msgIdx   = $idx('message');
-        $nameIdx  = $idx('name'); // opcional
 
         // Si tu XLSX usa nombres diferentes (telefono, celular, etc.), puedes agregar fallback aquí:
         if ($phoneIdx === null) {
@@ -82,9 +89,6 @@ class WhatsappOutboxManager extends Component
         }
         if ($msgIdx === null) {
             $msgIdx = $idx('mensaje') ?? $idx('texto') ?? $idx('msg');
-        }
-        if ($nameIdx === null) {
-            $nameIdx = $idx('nombre') ?? $idx('name');
         }
 
         if ($phoneIdx === null) {
@@ -137,10 +141,8 @@ class WhatsappOutboxManager extends Component
                 'updated_at' => $now,
             ];
 
-            // Si tu tabla tiene columna name, lo intentamos guardar; si no existe, no pasa nada.
-            if ($nameIdx !== null) {
-                $payload['name'] = trim((string)($r[$nameIdx] ?? ''));
-            }
+            // whatsapp_outbox no tiene columna de nombre: antes se insertaba
+            // 'name' y fallaban todos los lotes cuando el Excel la traía.
 
             $batch[] = $payload;
 
@@ -172,31 +174,13 @@ class WhatsappOutboxManager extends Component
 
     private function normalizePhone(string $value): ?string
     {
-        $value = trim($value);
-        if ($value === '') return null;
-
-        // Deja solo dígitos
-        $digits = preg_replace('/\D+/', '', $value) ?? '';
-        if ($digits === '') return null;
-
-        // Normalización Colombia típica:
-        // - si viene 10 dígitos (3xx...) asumimos Colombia y anteponemos 57
-        // - si viene 12 dígitos y empieza con 57, ok
-        // - si viene con 11 y empieza con 57? (raro) lo dejamos como esté
-        if (strlen($digits) === 10) {
-            $digits = '57' . $digits;
-        }
-
-        // Validación básica (ajústala si manejas otros países)
-        if (strlen($digits) < 11 || strlen($digits) > 15) {
-            return null;
-        }
-
-        return $digits;
+        return PhoneNumber::isValid($value) ? PhoneNumber::digits($value) : null;
     }
 
     public function cancel(int $id): void
     {
+        abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+
         WhatsAppOutbox::query()
             ->where('id', $id)
             ->whereIn('status', ['PENDING'])

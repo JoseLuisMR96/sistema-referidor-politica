@@ -21,6 +21,11 @@ class Create extends Component
     public ?string $hora_pago = null; // si lo usas como input datetime-local
     public ?string $imagen_pago = null;
 
+    public function mount(): void
+    {
+        abort_unless(auth()->user()->can('pregoneros_referidores.crear'), 403);
+    }
+
     protected function rules(): array
     {
         return [
@@ -37,6 +42,8 @@ class Create extends Component
 
     public function guardar()
     {
+        abort_unless(auth()->user()->can('pregoneros_referidores.crear'), 403);
+
         $data = $this->validate();
 
         $referidor = ReferidorPregonero::create([

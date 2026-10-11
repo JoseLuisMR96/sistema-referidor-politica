@@ -10,6 +10,8 @@ class ReferidosPregonerosExportController extends Controller
 {
     public function csv(ReferidorPregonero $referidor): StreamedResponse
     {
+        abort_unless(auth()->user()?->can('pregoneros_referidos.exportar'), 403);
+
         $filename = 'referidos_' . $referidor->cedula . '_' . now()->format('Ymd_His') . '.csv';
 
         return response()->streamDownload(function () use ($referidor) {
