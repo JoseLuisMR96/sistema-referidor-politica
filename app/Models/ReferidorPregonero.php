@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class ReferidorPregonero extends Model
 {
+    use BelongsToTenant;
+
     protected $table = 'referidores_pregoneros'; 
     protected $fillable = [
         'id_unico',

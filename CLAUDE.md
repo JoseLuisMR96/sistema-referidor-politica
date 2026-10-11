@@ -40,6 +40,31 @@ php artisan queue:work --queue=wpp
 php artisan queue:work --queue=whatsapp
 ```
 
+## Multi-tenant (un tenant = un candidato)
+
+Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal"). Sus referidores, registros, pregoneros, padrón importado y envíos de WhatsApp llevan `tenant_id` y no se mezclan con los de otro tenant. Municipios y departamentos se comparten; `call_results` (Retell) sigue siendo global porque el webhook no dice de qué tenant es.
+
+- **Modelo de datos:** cada modelo con datos usa el trait [BelongsToTenant](app/Models/Concerns/BelongsToTenant.php), que hace dos cosas:
+  - **scope global:** filtra por el tenant del contexto, incluido el route model binding (un id de otro tenant da 404);
+  - **al crear:** pone el `tenant_id` del contexto, y si no hay contexto **lanza una excepción**.
+
+  Si agregas un modelo con datos de un candidato, ponle el trait y agrega `tenant_id` en una migración.
+- **Contexto:** [TenantContext](app/Support/TenantContext.php) es un singleton `scoped`. Lo llena el middleware [SetTenantContext](app/Http/Middleware/SetTenantContext.php), que va en el grupo `web`, así que también corre en `/livewire/update`.
+- **Usuarios:** `users.tenant_id` admite nulo.
+  - **Nulo = global:** elige el tenant en el selector del menú; "Todos los tenants" es solo para consultar.
+  - **Con valor = restringido:** `TenantContext::id()` siempre devuelve su tenant, sin importar la sesión.
+  - Solo los globales con `tenants.gestionar` administran tenants en `/admin/tenants`.
+- **Pantallas que crean datos:** usan el trait [RequiereTenant](app/Livewire/Concerns/RequiereTenant.php) (`exigirTenant()`). En modo "Todos" mandan al usuario a elegir un tenant.
+- **Sin usuario logueado** (formularios públicos, webhooks, API, colas, consola) no hay contexto y los modelos no filtran. Por eso el `tenant_id` se pone **explícito**, según el caso:
+  - **formularios públicos:** el del referidor del link, buscado con `withoutGlobalScope('tenant')`;
+  - **respuestas de botones:** el del mensaje original;
+  - **API de WPP:** el campo `tenant` (slug) de la petición;
+  - **`referidos:volcar-importados`:** `--tenant=slug`.
+- **Escrituras que se saltan el trait:** `DB::table()`, `Model::insert()` y `upsert()` no pasan por el scope ni por el `creating`. Ahí el `tenant_id` va a mano (ver el Outbox, el comando de volcado y `ImportedPeopleSeeder`). Igual con las reglas `exists:`/`unique:` de validación: usa `Rule::exists(...)->where('tenant_id', …)`.
+- **Únicos por tenant:** cédula en `public_registrations` y en `imported_people`, y teléfono en `wpp_contacts`. La misma persona puede registrarse con dos candidatos.
+- **Twilio:** el tenant puede tener su propio `twilio_messaging_service_sid` (su número); si no, usa el del `.env`. Las respuestas caen solas en el tenant correcto por el mensaje original.
+- **Tests:** usa `$this->usarTenant()` de [TestCase](tests/TestCase.php) antes de crear datos. Cada petición HTTP del test vuelve a fijar el contexto desde la sesión. El aislamiento se prueba en [TenantAislamientoTest](tests/Feature/TenantAislamientoTest.php).
+
 ## Modelo de dominio
 
 ### Dos sistemas de referidos independientes (no los mezcles)

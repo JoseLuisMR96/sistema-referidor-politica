@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\SetTenantContext;
 use App\Http\Middleware\VerifyTwilioSignature;
 use Illuminate\Foundation\Application;
 use Spatie\Permission\Middleware\RoleMiddleware;
@@ -25,6 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
         if ($proxies) {
             $middleware->trustProxies(at: $proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
         }
+
+        // Tenant de la petición. En el grupo web (y no como middleware de
+        // ruta) para que también corra en /livewire/update.
+        $middleware->appendToGroup('web', SetTenantContext::class);
 
         $middleware->alias([
             'role' => RoleMiddleware::class,

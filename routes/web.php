@@ -5,6 +5,8 @@ use App\Http\Controllers\Admin\ReferidosPregonerosExportController;
 use App\Http\Controllers\DashboardExportController;
 use App\Http\Controllers\Exports\PublicRegistrationsExportController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TenantSwitchController;
+use App\Livewire\Admin\Tenants\Index as TenantsIndex;
 use App\Livewire\Admin\Referidores\Create as ReferidoresCreate;
 use App\Livewire\Admin\Referidores\Edit as ReferidoresEdit;
 use App\Livewire\Admin\Referidores\Index as ReferidoresIndex;
@@ -173,6 +175,19 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/imported-people/{id}', ImportedPeopleShow::class)
             ->name('imported-people.show');
     });
+
+    /*
+    |----------------------------------------------------------------------
+    | Tenants (candidatos)
+    |----------------------------------------------------------------------
+    */
+    // Selector del menú (solo usuarios globales; se valida en el controller)
+    Route::post('/tenant/seleccionar', TenantSwitchController::class)
+        ->name('tenant.seleccionar');
+
+    Route::get('/admin/tenants', TenantsIndex::class)
+        ->middleware('permission:tenants.gestionar')
+        ->name('tenants.index');
 
     /*
     |----------------------------------------------------------------------

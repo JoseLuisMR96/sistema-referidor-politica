@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ImportedPerson extends Model
 {
+    use BelongsToTenant;
+
     protected $table = 'imported_people';
 
     protected $fillable = [

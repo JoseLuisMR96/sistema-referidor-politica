@@ -67,7 +67,11 @@ class RegistrationForm extends Component
             return;
         }
 
+        // Sin el filtro de tenant: el código del link identifica al referidor
+        // (y con él al tenant), aunque quien abra el link tenga otro tenant
+        // elegido en su sesión.
         $this->referrer = Referrer::query()
+            ->withoutGlobalScope('tenant')
             ->where('code', $code)
             ->first();
     }
@@ -171,7 +175,10 @@ class RegistrationForm extends Component
 
         $data = $this->validate();
 
+        // La misma cédula puede estar registrada con otro candidato (tenant)
         $exists = PublicRegistration::query()
+            ->withoutGlobalScope('tenant')
+            ->where('tenant_id', $this->referrer->tenant_id)
             ->where('document_type', $data['document_type'])
             ->where('document_number', $data['document_number'])
             ->exists();
@@ -182,6 +189,7 @@ class RegistrationForm extends Component
         }
 
         PublicRegistration::create([
+            'tenant_id' => $this->referrer->tenant_id,
             'full_name' => $data['full_name'],
             'document_type' => $data['document_type'],
             'document_number' => $data['document_number'],

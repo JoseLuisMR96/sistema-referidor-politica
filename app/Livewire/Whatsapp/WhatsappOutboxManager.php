@@ -2,8 +2,10 @@
 
 namespace App\Livewire\Whatsapp;
 
+use App\Livewire\Concerns\RequiereTenant;
 use App\Models\WhatsAppOutbox;
 use App\Support\PhoneNumber;
+use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -13,6 +15,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class WhatsappOutboxManager extends Component
 {
+    use RequiereTenant;
     use WithFileUploads;
     use WithPagination;
 
@@ -57,6 +60,14 @@ class WhatsappOutboxManager extends Component
     public function import(): void
     {
         abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+
+        if (! $this->exigirTenant()) {
+            return;
+        }
+
+        // Insert masivo con DB::table: se salta el trait del modelo, así que
+        // el tenant va a mano.
+        $tenantId = app(TenantContext::class)->id();
 
         $this->validate();
 
@@ -131,6 +142,7 @@ class WhatsappOutboxManager extends Component
             $payload = [
                 'phone' => $phone,
                 'message' => $message,
+                'tenant_id' => $tenantId,
                 'status' => 'PENDING',
                 'attempts' => 0,
                 'reserved_by' => null,

@@ -57,6 +57,9 @@ class RolesYPermisosSeeder extends Seeder
             'pregoneros_referidores.editar',
             'pregoneros_referidores.exportar_masivo',
 
+            // Tenants (candidatos). Además del permiso, solo usuarios globales.
+            'tenants.gestionar',
+
         ];
 
         // 1) Crear/actualizar permisos (idempotente)

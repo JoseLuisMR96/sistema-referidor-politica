@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Enums\ButtonIdEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WhatsAppCampaignResponse extends Model
 {
+    use BelongsToTenant;
+
     protected $table = 'whatsapp_campaign_responses';
 
     protected $fillable = [
