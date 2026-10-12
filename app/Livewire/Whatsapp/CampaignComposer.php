@@ -3,9 +3,11 @@
 namespace App\Livewire\Whatsapp;
 
 use App\Jobs\SendWhatsappCampaignMessage;
+use App\Livewire\Concerns\RequiereTenant;
 use App\Models\WhatsappCampaign;
 use App\Models\WhatsappMessage;
 use App\Support\PhoneNumber;
+use App\Support\TenantContext;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -13,6 +15,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class CampaignComposer extends Component
 {
+    use RequiereTenant;
     use WithFileUploads;
 
     public string $name = '';
@@ -55,6 +58,12 @@ class CampaignComposer extends Component
     public function createAndSend()
     {
         abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+
+        if (! $this->exigirTenant()) {
+            return;
+        }
+
+        $tenant = app(TenantContext::class)->tenant();
 
         $usingTemplate = (bool) $this->useTwilioCampaign;
 
@@ -151,7 +160,7 @@ class CampaignComposer extends Component
             $campaign->name = ($this->name ?: 'Campaña Twilio') . ($this->testMode ? ' (TEST)' : '');
             $campaign->type = 'template';
 
-            $campaign->messaging_service_sid = $this->messagingServiceSid ?: config('services.twilio.messaging_service_sid');
+            $campaign->messaging_service_sid = $this->messagingServiceSid ?: $tenant->messagingServiceSid();
             $campaign->content_sid = $this->contentSid; // HX...
             $campaign->content_variables = $this->contentVarsJson ?: null;
 
@@ -186,6 +195,10 @@ class CampaignComposer extends Component
             }
         }
 
+        // Cada tenant envía por su propio Messaging Service (su número), también
+        // en mensajes libres. El job usa este valor.
+        $campaign->messaging_service_sid ??= $tenant->messagingServiceSid();
+
         $campaign->save();
 
         // Si testMode y NO testOnlyFirstN, enviamos SOLO al número de prueba.
@@ -195,6 +208,7 @@ class CampaignComposer extends Component
         if ($testTo) {
             $msg = WhatsappMessage::create([
                 'campaign_id' => $campaign->id,
+                'tenant_id' => $campaign->tenant_id,
                 'to' => $testTo,
                 'contact_name' => 'TEST',
                 'status' => 'pending',
@@ -216,6 +230,7 @@ class CampaignComposer extends Component
 
             $msg = WhatsappMessage::create([
                 'campaign_id' => $campaign->id,
+                'tenant_id' => $campaign->tenant_id,
                 'to' => $to,
                 'contact_name' => $r['name'] ?? null,
                 'status' => 'pending',

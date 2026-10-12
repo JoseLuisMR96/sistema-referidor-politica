@@ -1,4 +1,6 @@
 <div class="space-y-6">
+    <x-tenant-requerido accion="importar mensajes" />
+
     <div class="rounded-xl border bg-white p-4 space-y-4">
         <div class="flex items-center justify-between gap-3">
             <div>

@@ -30,7 +30,11 @@ class ReferirPregonero extends Component
 
     private function loadReferidor(): void
     {
+        // Sin el filtro de tenant: el id_unico del link identifica al referidor
+        // (y con él al tenant), aunque quien abra el link tenga otro tenant
+        // elegido en su sesión.
         $this->referidor = ReferidorPregonero::query()
+            ->withoutGlobalScope('tenant')
             ->where('id_unico', $this->id_unico)
             ->first();
     }
@@ -84,6 +88,7 @@ class ReferirPregonero extends Component
         $data = $this->validate();
 
         ReferidoPregonero::create([
+            'tenant_id' => $this->referidor->tenant_id,
             'referidor_pregonero_id' => $this->referidor->id,
             'nombre' => $data['nombre'],
             'cedula' => $data['cedula'],

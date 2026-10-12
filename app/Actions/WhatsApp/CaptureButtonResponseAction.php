@@ -56,7 +56,10 @@ class CaptureButtonResponseAction
             }
 
             // 3. Crear respuesta
+            // Los webhooks no tienen usuario ni tenant en contexto: el tenant
+            // sale del mensaje original.
             $response = WhatsAppCampaignResponse::create([
+                'tenant_id' => $message->tenant_id,
                 'campaign_id' => $dto->campaignId,
                 'campaign_message_id' => $dto->campaignMessageId,
                 'phone' => $dto->phone,

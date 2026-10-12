@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\TenantContext;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +12,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // scoped: se reinicia entre peticiones y entre jobs de la cola
+        $this->app->scoped(TenantContext::class);
     }
 
     /**

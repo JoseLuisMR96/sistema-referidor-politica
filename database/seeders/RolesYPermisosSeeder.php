@@ -57,6 +57,13 @@ class RolesYPermisosSeeder extends Seeder
             'pregoneros_referidores.editar',
             'pregoneros_referidores.exportar_masivo',
 
+            // Tenants (candidatos). Además del permiso, solo usuarios globales.
+            'tenants.gestionar',
+
+            // Redes sociales: configurar credenciales/cuentas y ver el análisis
+            'redes.configurar',
+            'redes.ver',
+
         ];
 
         // 1) Crear/actualizar permisos (idempotente)
@@ -87,6 +94,7 @@ class RolesYPermisosSeeder extends Seeder
             'registros.exportar',
             'reportes.ver',
             'dashboard.exportar',
+            'redes.ver',
         ]);
 
         $rolAnalista->syncPermissions([
@@ -97,6 +105,7 @@ class RolesYPermisosSeeder extends Seeder
             'importados.exportar',
             'reportes.ver',
             'dashboard.exportar',
+            'redes.ver',
         ]);
 
         // Referidor: crea registros y ve los suyos

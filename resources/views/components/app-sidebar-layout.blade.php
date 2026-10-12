@@ -65,6 +65,38 @@
                 </a>
             </div>
 
+            {{-- Tenant (candidato) con el que se trabaja --}}
+            @php
+                $tenantCtx = app(\App\Support\TenantContext::class);
+                $tenantActual = $tenantCtx->tenant();
+            @endphp
+            <div class="px-4 pt-4">
+                @if (Auth::user()->esGlobal())
+                    <form method="POST" action="{{ route('tenant.seleccionar') }}">
+                        @csrf
+                        <label for="tenant-selector" class="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                            Candidato
+                        </label>
+                        <select id="tenant-selector" name="tenant_id" onchange="this.form.submit()"
+                            class="w-full rounded-lg border-gray-300 text-sm font-semibold">
+                            <option value="">Todos los tenants (solo consulta)</option>
+                            @foreach (\App\Models\Tenant::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']) as $t)
+                                <option value="{{ $t->id }}" @selected($tenantActual?->id === $t->id)>{{ $t->nombre }}</option>
+                            @endforeach
+                        </select>
+                        <noscript><button class="mt-1 text-xs underline">Cambiar</button></noscript>
+                    </form>
+                @else
+                    <div class="rounded-lg border bg-indigo-50 px-3 py-2">
+                        <div class="text-xs uppercase tracking-wider text-indigo-400">Candidato</div>
+                        <div class="text-sm font-semibold text-indigo-900 truncate">{{ $tenantActual?->nombre }}</div>
+                    </div>
+                @endif
+                @if ($tenantActual?->descripcion)
+                    <div class="mt-1 text-xs text-gray-500 truncate">{{ $tenantActual->descripcion }}</div>
+                @endif
+            </div>
+
             {{-- Navigation --}}
             <nav class="flex-1 p-4 space-y-1 text-sm">
 
@@ -74,7 +106,13 @@
 
                 @can('dashboard.ver')
                     <x-sidebar-link route="dashboard" icon="home">
-                        Dashboard
+                        Dashboard de registros
+                    </x-sidebar-link>
+                @endcan
+
+                @can('redes.ver')
+                    <x-sidebar-link route="dashboard.redes" icon="home">
+                        Dashboard de redes
                     </x-sidebar-link>
                 @endcan
 
@@ -129,6 +167,20 @@
                         Usuarios
                     </x-sidebar-link>
                 @endcan
+
+                @can('redes.configurar')
+                    <x-sidebar-link route="redes.index" icon="link">
+                        Redes sociales
+                    </x-sidebar-link>
+                @endcan
+
+                @if (Auth::user()->esGlobal())
+                    @can('tenants.gestionar')
+                        <x-sidebar-link route="tenants.index" icon="users">
+                            Tenants
+                        </x-sidebar-link>
+                    @endcan
+                @endif
 
             </nav>
 
@@ -214,6 +266,12 @@
 
             {{-- CONTENT --}}
             <main class="flex-1 px-4 sm:px-6 py-6">
+                @if (session('tenant_aviso'))
+                    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
+                        {{ session('tenant_aviso') }}
+                    </div>
+                @endif
+
                 {{ $slot }}
             </main>
         </div>

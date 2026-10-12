@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Tenant;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,6 +19,18 @@ class ImportedPeopleSeeder extends Seeder
         }
 
         $batchId = 'EXCEL_' . now()->format('Ymd_His');
+
+        // upsert con DB::table se salta el trait del modelo: el tenant va a
+        // mano. SEED_TENANT = slug del tenant; si no, el primero.
+        $tenantId = Tenant::query()
+            ->when(env('SEED_TENANT'), fn ($q, $slug) => $q->where('slug', $slug))
+            ->orderBy('id')
+            ->value('id');
+
+        if (! $tenantId) {
+            $this->command?->error('No hay tenant para asignar el padrón (revisa SEED_TENANT).');
+            return;
+        }
 
         $handle = fopen($path, 'r');
         if (!$handle) {
@@ -66,6 +79,7 @@ class ImportedPeopleSeeder extends Seeder
                 'document_number' => $doc,
                 'voting_place' => $place,
                 'batch_id' => $batchId,
+                'tenant_id' => $tenantId,
                 'created_by_user_id' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -90,7 +104,7 @@ class ImportedPeopleSeeder extends Seeder
     {
         DB::table('imported_people')->upsert(
             $rows,
-            ['document_number'],
+            ['tenant_id', 'document_number'],
             ['full_name', 'phone', 'voting_place', 'batch_id', 'updated_at']
         );
     }

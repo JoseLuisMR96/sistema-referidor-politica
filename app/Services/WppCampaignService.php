@@ -7,15 +7,34 @@ use App\Models\WppCampaign;
 use App\Models\WppContact;
 use App\Models\WppMessage;
 use App\Support\PhoneNumber;
+use App\Support\TenantContext;
 
 class WppCampaignService
 {
+    /**
+     * Todo se crea dentro del tenant indicado: la API no tiene usuario y la
+     * pantalla puede estar en otro contexto, así que no se deja implícito.
+     */
     public function createCampaignAndQueue(
+        int $tenantId,
         array $contacts,
         string $name,
         string $template,
         ?string $session = null,
         ?string $imagePath = null
+    ): WppCampaign {
+        return app(TenantContext::class)->con(
+            $tenantId,
+            fn () => $this->crear($contacts, $name, $template, $session, $imagePath),
+        );
+    }
+
+    private function crear(
+        array $contacts,
+        string $name,
+        string $template,
+        ?string $session,
+        ?string $imagePath,
     ): WppCampaign {
         $session = $session ?: (string) config('services.wppconnect.default_session');
 

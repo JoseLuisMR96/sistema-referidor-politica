@@ -27,7 +27,10 @@ class WebhookMetricasTest extends TestCase
     {
         parent::setUp();
 
+        $tenant = $this->usarTenant();
+
         $campaignId = DB::table('campaigns')->insertGetId([
+            'tenant_id' => $tenant->id,
             'name' => 'Prueba',
             'type' => 'template',
             'status' => 'sending',

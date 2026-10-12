@@ -3,10 +3,13 @@
 // app/Models/WhatsAppOutbox.php
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class WhatsAppOutbox extends Model
 {
+    use BelongsToTenant;
+
     protected $table = 'whatsapp_outbox';
 
     protected $fillable = [

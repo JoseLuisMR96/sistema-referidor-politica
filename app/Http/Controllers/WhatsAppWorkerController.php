@@ -2,6 +2,7 @@
 // app/Http/Controllers/WhatsAppWorkerController.php
 namespace App\Http\Controllers;
 
+use App\Models\Tenant;
 use App\Models\WhatsAppOutbox;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,17 @@ class WhatsAppWorkerController extends Controller
         $worker = (string)($request->query('worker', 'pc-unknown'));
         $limit  = max(1, min(20, (int)$request->query('limit', 5)));
 
+        // Opcional: ?tenant=slug para que cada teléfono solo tome los mensajes
+        // de su candidato. Sin el parámetro toma de todos los tenants.
+        $tenantId = null;
+        if ($slug = $request->query('tenant')) {
+            $tenantId = Tenant::where('slug', $slug)->value('id');
+
+            if (! $tenantId) {
+                return response()->json(['ok' => false, 'error' => 'tenant_invalido'], 422);
+            }
+        }
+
         $reserveSeconds = config('services.whatsapp_worker.reserve_seconds', 180);
         $maxAttempts = config('services.whatsapp_worker.max_attempts', 5);
 
@@ -40,9 +52,10 @@ class WhatsAppWorkerController extends Controller
             ]);
 
         // 2) reservar en transacción
-        $jobs = DB::transaction(function () use ($worker, $limit, $maxAttempts) {
+        $jobs = DB::transaction(function () use ($worker, $limit, $maxAttempts, $tenantId) {
             // lockForUpdate evita carreras
             $rows = WhatsAppOutbox::query()
+                ->when($tenantId, fn ($q) => $q->where('tenant_id', $tenantId))
                 ->where('status', 'PENDING')
                 ->where('attempts', '<', $maxAttempts)
                 ->orderBy('id')

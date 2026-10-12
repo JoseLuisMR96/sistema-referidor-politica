@@ -21,7 +21,12 @@ class UserIndex extends Component
     {
         abort_unless(auth()->user()->can('usuarios.ver'), 403);
 
+        $yo = auth()->user();
+
         $q = User::query()
+            ->with('tenant:id,nombre')
+            // Un usuario restringido solo ve a los de su tenant
+            ->when(! $yo->esGlobal(), fn ($query) => $query->where('tenant_id', $yo->tenant_id))
             ->when($this->search !== '', function ($query) {
                 $s = trim($this->search);
                 $query->where(function ($qq) use ($s) {

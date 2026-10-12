@@ -3,11 +3,14 @@
 namespace App\Livewire\Admin\Referrers;
 
 use Livewire\Component;
+use App\Livewire\Concerns\RequiereTenant;
 use App\Models\Referrer;
 use Illuminate\Support\Str;
 
 class Create extends Component
 {
+    use RequiereTenant;
+
     public string $name = '';
     public ?string $phone = null;
     public ?string $email = null;
@@ -39,6 +42,12 @@ class Create extends Component
 
     public function save()
     {
+        abort_unless(auth()->user()->can('referidores.crear'), 403);
+
+        if (! $this->exigirTenant()) {
+            return;
+        }
+
         $data = $this->validate();
 
         $ref = Referrer::create([

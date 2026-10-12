@@ -40,6 +40,61 @@ php artisan queue:work --queue=wpp
 php artisan queue:work --queue=whatsapp
 ```
 
+## Multi-tenant (un tenant = un candidato)
+
+Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal"). Sus referidores, registros, pregoneros, padrón importado y envíos de WhatsApp llevan `tenant_id` y no se mezclan con los de otro tenant. Municipios y departamentos se comparten; `call_results` (Retell) sigue siendo global porque el webhook no dice de qué tenant es.
+
+- **Modelo de datos:** cada modelo con datos usa el trait [BelongsToTenant](app/Models/Concerns/BelongsToTenant.php), que hace dos cosas:
+  - **scope global:** filtra por el tenant del contexto, incluido el route model binding (un id de otro tenant da 404);
+  - **al crear:** pone el `tenant_id` del contexto, y si no hay contexto **lanza una excepción**.
+
+  Si agregas un modelo con datos de un candidato, ponle el trait y agrega `tenant_id` en una migración.
+- **Contexto:** [TenantContext](app/Support/TenantContext.php) es un singleton `scoped`. Lo llena el middleware [SetTenantContext](app/Http/Middleware/SetTenantContext.php), que va en el grupo `web`, así que también corre en `/livewire/update`.
+- **Usuarios:** `users.tenant_id` admite nulo.
+  - **Nulo = global:** elige el tenant en el selector del menú; "Todos los tenants" es solo para consultar.
+  - **Con valor = restringido:** `TenantContext::id()` siempre devuelve su tenant, sin importar la sesión.
+  - Solo los globales con `tenants.gestionar` administran tenants en `/admin/tenants`.
+- **Pantallas que crean datos:** usan el trait [RequiereTenant](app/Livewire/Concerns/RequiereTenant.php) (`exigirTenant()` en las acciones que guardan) y ponen `<x-tenant-requerido accion="…" />` al inicio de la vista.
+  - En modo "Todos" la pantalla **abre igual** y muestra un selector para elegir el candidato ahí mismo; guardar devuelve el error `tenant`.
+  - **No redirijas desde `mount()`:** se hizo así al principio y parecía que el menú no llevaba a la pantalla.
+- **Sin usuario logueado** (formularios públicos, webhooks, API, colas, consola) no hay contexto y los modelos no filtran. Por eso el `tenant_id` se pone **explícito**, según el caso:
+  - **formularios públicos:** el del referidor del link, buscado con `withoutGlobalScope('tenant')`;
+  - **respuestas de botones:** el del mensaje original;
+  - **API de WPP:** el campo `tenant` (slug) de la petición;
+  - **`referidos:volcar-importados`:** `--tenant=slug`.
+- **Escrituras que se saltan el trait:** `DB::table()`, `Model::insert()` y `upsert()` no pasan por el scope ni por el `creating`. Ahí el `tenant_id` va a mano (ver el Outbox, el comando de volcado y `ImportedPeopleSeeder`). Igual con las reglas `exists:`/`unique:` de validación: usa `Rule::exists(...)->where('tenant_id', …)`.
+- **Únicos por tenant:** cédula en `public_registrations` y en `imported_people`, y teléfono en `wpp_contacts`. La misma persona puede registrarse con dos candidatos.
+- **Twilio:** el tenant puede tener su propio `twilio_messaging_service_sid` (su número); si no, usa el del `.env`. Las respuestas caen solas en el tenant correcto por el mensaje original.
+- **Circunscripción:** cada tenant tiene `cargo` ([CargoEnum](app/Enums/CargoEnum.php)), `departamento_id` y `municipio_id`. El ámbito del cargo decide qué es obligatorio:
+  - **nacional** (Senado, Presidencia): nada;
+  - **departamental** (Gobernación, Asamblea, Cámara): departamento;
+  - **municipal** (Alcaldía, Concejo, JAL): departamento y municipio.
+
+  `DashboardStats::circunscripcion()` cuenta los registros por **municipio de votación (FK)** dentro de esa zona: los que pueden votar por el candidato, los que votan fuera y los que no tienen municipio. El formulario público arranca en el lugar del candidato, y el mapa del dashboard en su departamento.
+- **Tests:** usa `$this->usarTenant()` de [TestCase](tests/TestCase.php) antes de crear datos. Cada petición HTTP del test vuelve a fijar el contexto desde la sesión. El aislamiento se prueba en [TenantAislamientoTest](tests/Feature/TenantAislamientoTest.php).
+
+## Redes sociales (Meta)
+
+- **Credenciales globales:** viven en `integraciones` (proveedor `meta`), cifradas con el cast `encrypted:array`. Si se rota `APP_KEY`, hay que volver a cargarlas.
+  - Se configuran en `/admin/redes`: solo usuarios globales con `redes.configurar`.
+  - URL base y versión de la Graph API son configurables. Meta retira versiones viejas: si falla por versión, súbela ahí.
+- **Cuentas del candidato:** [RedCuenta](app/Models/RedCuenta.php), por tenant. Su `access_token`, también cifrado, existe solo cuando el candidato da acceso.
+- **Qué mide [RedesSincronizador](app/Services/Redes/RedesSincronizador.php)** según el acceso:
+  - **Instagram sin acceso:** Business Discovery con la cuenta IG profesional propia. El token debe tener `instagram_basic`, `instagram_manage_insights`, `pages_show_list`, `pages_read_engagement` y `business_management`; sin `instagram_manage_insights`, Meta responde el error #10. Solo funciona con cuentas profesionales y solo trae datos públicos: seguidores, publicaciones y me gusta/comentarios.
+  - **Instagram con token del candidato:** sus datos directos.
+  - **Facebook:** **siempre** necesita el token de la página. Meta no da métricas de páginas ajenas.
+- **Fotos diarias:** cada sincronización guarda una fila por cuenta y día en `redes_metricas`.
+  - El comando es `redes:sincronizar`, programado a las 06:00 en [routes/console.php](routes/console.php). En producción hace falta el cron `* * * * * php artisan schedule:run`.
+  - `withoutOverlapping()` usa la caché, así que `schedule:list` en local con MySQL apagado falla. Usa `CACHE_STORE=array`.
+- **Dos dashboards separados:**
+  - `/dashboard` ([Stats](app/Livewire/Dashboard/Stats.php)): solo registros.
+  - `/dashboard/redes` ([Redes](app/Livewire/Dashboard/Redes.php), permiso `redes.ver`): las redes. No vuelvas a mezclar redes en el de registros.
+
+  [RedesStats](app/Services/Redes/RedesStats.php) da al dashboard de redes dos vistas:
+  - **`resumen()`** (con candidato elegido): totales y crecimiento semanal;
+  - **`comparativo()`** (en "Todos"): recorre cada tenant con `TenantContext::con()` para no mezclar cuentas.
+- **No hacer scraping ni guardar personas con inclinación política inferida.** Solo cifras agregadas (Ley 1581: la opinión política es dato sensible).
+
 ## Modelo de dominio
 
 ### Dos sistemas de referidos independientes (no los mezcles)

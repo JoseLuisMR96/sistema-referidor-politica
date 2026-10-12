@@ -4,8 +4,8 @@
     <div class="sticky top-0 z-30 -mx-4 sm:mx-0 px-4 sm:px-6 lg:px-8 py-4 bg-white/80 backdrop-blur border-b">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="min-w-0">
-                <h2 class="font-extrabold text-xl text-slate-900 leading-tight truncate">Dashboard</h2>
-                <div class="text-sm text-slate-500">Vista ejecutiva del flujo de registros</div>
+                <h2 class="font-extrabold text-xl text-slate-900 leading-tight truncate">Dashboard de registros</h2>
+                <div class="text-sm text-slate-500">Registros, referidores y apoyo por municipio. Las redes sociales tienen su propio dashboard.</div>
             </div>
 
             @can('dashboard.exportar')
@@ -83,6 +83,71 @@
                 </div>
             </div>
         </div>
+
+        {{-- Card: Apoyo en la circunscripción del candidato elegido --}}
+        @php($tenantDash = app(\App\Support\TenantContext::class)->tenant())
+        @if ($circunscripcion)
+            @php($c = $circunscripcion)
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+                <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+                    <div>
+                        <div class="text-xs uppercase tracking-wider text-slate-400">Apoyo en la circunscripción</div>
+                        <div class="text-lg font-extrabold text-slate-900">{{ $c['titulo'] }}</div>
+                    </div>
+                    @if ($c['cobertura'])
+                        <div class="text-sm text-slate-600">
+                            Presencia en
+                            <span class="font-bold text-slate-900 tabular-nums">{{ $c['cobertura']['con_registros'] }}</span>
+                            de <span class="tabular-nums">{{ $c['cobertura']['total'] }}</span> municipios
+                        </div>
+                    @endif
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
+                        <div class="text-xs text-emerald-700">Pueden votar por el candidato</div>
+                        <div class="text-2xl font-extrabold text-emerald-900 tabular-nums">{{ number_format($c['dentro']) }}</div>
+                    </div>
+                    <div class="rounded-xl bg-rose-50 border border-rose-100 p-4">
+                        <div class="text-xs text-rose-700">Votan fuera de la circunscripción</div>
+                        <div class="text-2xl font-extrabold text-rose-900 tabular-nums">{{ number_format($c['fuera']) }}</div>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
+                        <div class="text-xs text-slate-600">Sin municipio de votación</div>
+                        <div class="text-2xl font-extrabold text-slate-900 tabular-nums">{{ number_format($c['sin_dato']) }}</div>
+                    </div>
+                </div>
+
+                @if (count($c['filas']) > 1)
+                    <div>
+                        <div class="text-sm font-semibold text-slate-700 mb-2">
+                            {{ $c['ambito'] === 'nacional' ? 'Registros por departamento' : 'Registros por municipio (los que están en 0 necesitan trabajo)' }}
+                        </div>
+                        <div class="max-h-80 overflow-y-auto rounded-xl border border-slate-200">
+                            <table class="min-w-full text-sm">
+                                <tbody class="divide-y">
+                                    @foreach ($c['filas'] as $fila)
+                                        <tr class="{{ $fila['value'] === 0 ? 'text-slate-400' : '' }}">
+                                            <td class="py-2 px-4">{{ $fila['label'] }}</td>
+                                            <td class="py-2 px-4 text-right font-semibold tabular-nums">{{ number_format($fila['value']) }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
+            </div>
+        @elseif ($tenantDash)
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                A <strong>{{ $tenantDash->nombre }}</strong> le falta el cargo o el lugar al que se postula.
+                @if (auth()->user()->esGlobal() && auth()->user()->can('tenants.gestionar'))
+                    Complétalo en <a href="{{ route('tenants.index') }}" class="underline font-semibold">Tenants</a> para ver el apoyo por municipio.
+                @else
+                    Pídele a un administrador que lo complete para ver el apoyo por municipio.
+                @endif
+            </div>
+        @endif
 
         {{-- Bloque: Top referidores + Municipios donde votan --}}
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -915,6 +980,10 @@
         }
 
         function initDashboard() {
+            // El mapa abre en el departamento del candidato elegido
+            const selDepto = document.getElementById('selectDepto');
+            if (selDepto && @json($deptoMapa)) selDepto.value = @json($deptoMapa);
+
             __dash.data = {
                 conteoPorMunicipio: @json($conteoPorMunicipio),
                 topReferrers: @json($topReferrers),

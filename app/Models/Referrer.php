@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\User;
 use App\Models\PublicRegistration;
 use Illuminate\Database\Eloquent\Model;
 
 class Referrer extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = ['name', 'code', 'is_active', 'phone', 'email'];
 
     public function registrations()
