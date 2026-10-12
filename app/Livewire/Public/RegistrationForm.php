@@ -8,6 +8,7 @@ use App\Models\Municipio;
 use App\Models\Departamento;
 use Illuminate\Validation\Rule;
 use App\Models\PublicRegistration;
+use App\Models\Tenant;
 use Livewire\Attributes\Locked;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -51,10 +52,31 @@ class RegistrationForm extends Component
             ->get(['id', 'nombre'])
             ->toArray();
 
-        $meta = Departamento::query()->whereRaw('UPPER(nombre)=?', ['META'])->first();
-        if ($meta) {
-            $this->residence_department_id = (int) $meta->id;
-            $this->voting_department_id = (int) $meta->id;
+        $this->precargarLugar();
+    }
+
+    /**
+     * Arranca el formulario en el lugar donde se postula el candidato del
+     * referidor (su departamento y, si el cargo es municipal, su municipio).
+     * Sin candidato o sin lugar definido, META como antes.
+     */
+    private function precargarLugar(): void
+    {
+        $tenant = $this->referrer
+            ? Tenant::find($this->referrer->tenant_id)
+            : null;
+
+        $departamentoId = $tenant?->departamento_id
+            ?? Departamento::query()->whereRaw('UPPER(nombre)=?', ['META'])->value('id');
+
+        if ($departamentoId) {
+            $this->residence_department_id = (int) $departamentoId;
+            $this->voting_department_id = (int) $departamentoId;
+        }
+
+        if ($tenant?->municipio_id) {
+            $this->residence_municipality_id = (int) $tenant->municipio_id;
+            $this->voting_municipality_id = (int) $tenant->municipio_id;
         }
     }
 
@@ -228,12 +250,7 @@ class RegistrationForm extends Component
         $this->ref = $refCode;
         $this->loadReferrer();
 
-        // Si quieres volver a precargar META
-        $meta = Departamento::query()->whereRaw('UPPER(nombre)=?', ['META'])->first();
-        if ($meta) {
-            $this->residence_department_id = (int) $meta->id;
-            $this->voting_department_id = (int) $meta->id;
-        }
+        $this->precargarLugar();
     }
 
 

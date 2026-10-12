@@ -106,7 +106,13 @@
 
                 @can('dashboard.ver')
                     <x-sidebar-link route="dashboard" icon="home">
-                        Dashboard
+                        Dashboard de registros
+                    </x-sidebar-link>
+                @endcan
+
+                @can('redes.ver')
+                    <x-sidebar-link route="dashboard.redes" icon="home">
+                        Dashboard de redes
                     </x-sidebar-link>
                 @endcan
 
@@ -159,6 +165,12 @@
                 @can('usuarios.ver')
                     <x-sidebar-link route="users.index" icon="users">
                         Usuarios
+                    </x-sidebar-link>
+                @endcan
+
+                @can('redes.configurar')
+                    <x-sidebar-link route="redes.index" icon="link">
+                        Redes sociales
                     </x-sidebar-link>
                 @endcan
 

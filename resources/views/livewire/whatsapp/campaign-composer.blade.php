@@ -1,4 +1,6 @@
 <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+    <x-tenant-requerido accion="enviar campañas" />
+
     {{-- Header --}}
     <div class="mb-6 flex items-start justify-between gap-4">
         <div>

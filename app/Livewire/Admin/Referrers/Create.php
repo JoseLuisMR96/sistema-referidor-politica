@@ -19,7 +19,6 @@ class Create extends Component
     public function mount(): void
     {
         abort_unless(auth()->user()->can('referidores.crear'), 403);
-        $this->exigirTenant();
     }
 
     protected function rules(): array

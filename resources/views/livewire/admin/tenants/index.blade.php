@@ -37,6 +37,49 @@
                     </div>
 
                     <div>
+                        <label class="block text-sm font-semibold">Cargo al que se postula</label>
+                        <select wire:model.live="cargo" class="mt-1 w-full rounded-md border-gray-300">
+                            <option value="">— Elige el cargo —</option>
+                            @foreach ($cargos as $c)
+                                <option value="{{ $c->value }}">{{ $c->label() }} ({{ $c->ambito() }})</option>
+                            @endforeach
+                        </select>
+                        @error('cargo') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        @if ($pideDepartamento)
+                            <div>
+                                <label class="block text-sm font-semibold">Departamento</label>
+                                <select wire:model.live="departamento_id" class="mt-1 w-full rounded-md border-gray-300">
+                                    <option value="">— Departamento —</option>
+                                    @foreach ($departamentos as $d)
+                                        <option value="{{ $d->id }}">{{ $d->nombre }}</option>
+                                    @endforeach
+                                </select>
+                                @error('departamento_id') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                            </div>
+                        @endif
+
+                        @if ($pideMunicipio)
+                            <div>
+                                <label class="block text-sm font-semibold">Municipio</label>
+                                <select wire:model="municipio_id" class="mt-1 w-full rounded-md border-gray-300" @disabled(! $departamento_id)>
+                                    <option value="">— Municipio —</option>
+                                    @foreach ($municipios as $m)
+                                        <option value="{{ $m->id }}">{{ $m->nombre }}</option>
+                                    @endforeach
+                                </select>
+                                @error('municipio_id') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                            </div>
+                        @endif
+
+                        @if ($cargo !== '' && ! $pideDepartamento)
+                            <div class="text-xs text-gray-500 sm:col-span-2 sm:mt-7">Cargo nacional: no se registra lugar.</div>
+                        @endif
+                    </div>
+
+                    <div>
                         <label class="block text-sm font-semibold">Messaging Service SID de Twilio (opcional)</label>
                         <input wire:model="twilio_messaging_service_sid" class="mt-1 w-full rounded-md border-gray-300 font-mono" placeholder="MG..." />
                         <div class="text-xs text-gray-500 mt-1">El número desde el que salen sus WhatsApp. Vacío = el de la configuración general.</div>
@@ -80,6 +123,9 @@
                                 <td class="py-3 px-4">
                                     <div class="font-semibold text-gray-900">{{ $t->nombre }}</div>
                                     <div class="text-xs text-gray-500">{{ $t->descripcion ?: '—' }}</div>
+                                    <div class="text-xs {{ $t->ambito() ? 'text-indigo-700' : 'text-amber-700' }}">
+                                        {{ $t->circunscripcionTexto() }}
+                                    </div>
                                     <div class="text-xs text-gray-400 font-mono">{{ $t->slug }}</div>
                                 </td>
                                 <td class="py-3 px-4 text-right tabular-nums">{{ (int) ($registros[$t->id] ?? 0) }}</td>

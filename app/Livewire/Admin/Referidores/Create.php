@@ -24,7 +24,6 @@ class Create extends Component
     public function mount(): void
     {
         abort_unless(auth()->user()->can('pregoneros_referidores.crear'), 403);
-        $this->exigirTenant();
     }
 
     protected function rules(): array

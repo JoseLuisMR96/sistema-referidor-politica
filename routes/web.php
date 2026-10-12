@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardExportController;
 use App\Http\Controllers\Exports\PublicRegistrationsExportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TenantSwitchController;
+use App\Livewire\Admin\Redes\Index as RedesIndex;
 use App\Livewire\Admin\Tenants\Index as TenantsIndex;
 use App\Livewire\Admin\Referidores\Create as ReferidoresCreate;
 use App\Livewire\Admin\Referidores\Edit as ReferidoresEdit;
@@ -14,6 +15,7 @@ use App\Livewire\Admin\Referidores\Show as ReferidoresShow;
 use App\Livewire\Admin\Referrers\Create as ReferrersCreate;
 use App\Livewire\Admin\Referrers\Edit as ReferrersEdit;
 use App\Livewire\Admin\Referrers\Index as ReferrersIndex;
+use App\Livewire\Dashboard\Redes as DashboardRedes;
 use App\Livewire\Dashboard\Stats;
 use App\Livewire\ImportedPeople\Index as ImportedPeopleIndex;
 use App\Livewire\ImportedPeople\Show as ImportedPeopleShow;
@@ -63,6 +65,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', Stats::class)
         ->middleware('permission:dashboard.ver')
         ->name('dashboard');
+
+    // Dashboard de redes sociales (separado del de registros)
+    Route::get('/dashboard/redes', DashboardRedes::class)
+        ->middleware('permission:redes.ver')
+        ->name('dashboard.redes');
 
     // Perfil (Breeze)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -188,6 +195,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admin/tenants', TenantsIndex::class)
         ->middleware('permission:tenants.gestionar')
         ->name('tenants.index');
+
+    Route::get('/admin/redes', RedesIndex::class)
+        ->middleware('permission:redes.configurar')
+        ->name('redes.index');
 
     /*
     |----------------------------------------------------------------------

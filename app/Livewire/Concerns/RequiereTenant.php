@@ -6,13 +6,17 @@ use App\Support\TenantContext;
 
 /**
  * Para pantallas que CREAN datos: en modo "Todos los tenants" no se sabe a
- * quién pertenece lo que se crea, así que se manda al usuario a elegir uno.
+ * quién pertenece lo que se crea.
+ *
+ * La pantalla se abre igual y la vista muestra <x-tenant-requerido /> con un
+ * selector para elegir el candidato ahí mismo. Antes se redirigía al
+ * dashboard y parecía que el menú no llevaba a la pantalla.
  */
 trait RequiereTenant
 {
     /**
-     * Devuelve false (y redirige) si no hay un tenant concreto elegido.
-     * Uso: `if (! $this->exigirTenant()) return;`
+     * False si no hay un tenant concreto elegido (y deja un error 'tenant').
+     * Uso en las acciones que guardan: `if (! $this->exigirTenant()) return;`
      */
     protected function exigirTenant(): bool
     {
@@ -20,8 +24,7 @@ trait RequiereTenant
             return true;
         }
 
-        session()->flash('tenant_aviso', 'Elige un tenant en el menú lateral antes de crear datos: en "Todos los tenants" solo se puede consultar.');
-        $this->redirectRoute('dashboard');
+        $this->addError('tenant', 'Elige un candidato antes de guardar: en "Todos los tenants" solo se puede consultar.');
 
         return false;
     }

@@ -27,7 +27,6 @@ class CampaignUploader extends Component
     public function mount(): void
     {
         abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
-        $this->exigirTenant();
 
         $this->session = (string) config('services.wppconnect.default_session', 'cristian1');
     }

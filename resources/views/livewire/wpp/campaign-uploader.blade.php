@@ -1,4 +1,6 @@
 <div class="max-w-4xl mx-auto p-6 bg-white rounded-2xl shadow space-y-6">
+    <x-tenant-requerido accion="enviar campañas" />
+
     <div>
         <h1 class="text-2xl font-bold text-gray-800">Campaña WhatsApp - WPPConnect</h1>
         <p class="text-sm text-gray-500 mt-1">

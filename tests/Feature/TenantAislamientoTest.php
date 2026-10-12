@@ -145,14 +145,41 @@ class TenantAislamientoTest extends TestCase
             ->assertSee('Persona 222');
     }
 
-    public function test_en_modo_todos_no_se_puede_crear(): void
+    public function test_en_modo_todos_la_pantalla_abre_pero_no_deja_crear(): void
     {
         $admin = $this->usuario('Administrador');
         app(TenantContext::class)->set(null);
 
         Livewire::actingAs($admin)
             ->test(ReferrersCreate::class)
-            ->assertRedirect(route('dashboard'));
+            ->assertSee('Elige un candidato para crear referidores')
+            ->set('name', 'Sin candidato')
+            ->call('save')
+            ->assertHasErrors('tenant');
+
+        $this->assertSame(0, Referrer::withoutGlobalScope('tenant')->count());
+    }
+
+    public function test_whatsapp_masivo_abre_en_modo_todos_con_selector_de_candidato(): void
+    {
+        $admin = $this->usuario('Administrador');
+
+        // Antes redirigía al dashboard y parecía que el menú no funcionaba
+        $this->actingAs($admin)->get('/whatsapp/campanas/nueva')
+            ->assertOk()
+            ->assertSee('Elige un candidato para enviar campañas')
+            ->assertSee('Camilo Cfer');
+
+        // Al elegir candidato vuelve a la misma pantalla, ya sin el aviso
+        $this->actingAs($admin)
+            ->from('/whatsapp/campanas/nueva')
+            ->post('/tenant/seleccionar', ['tenant_id' => $this->camilo->id])
+            ->assertRedirect('/whatsapp/campanas/nueva');
+
+        $this->actingAs($admin)->get('/whatsapp/campanas/nueva')
+            ->assertOk()
+            ->assertDontSee('Elige un candidato para enviar campañas')
+            ->assertSee('Candidato:');
     }
 
     public function test_formulario_publico_registra_en_el_tenant_del_referidor_y_permite_misma_cedula_en_otro(): void
@@ -231,7 +258,8 @@ class TenantAislamientoTest extends TestCase
         Livewire::actingAs($this->usuario('Administrador'))
             ->test(TenantsIndex::class)
             ->set('nombre', 'Wilmar Barbosa')
-            ->set('descripcion', 'Candidato a la Gobernación')
+            ->set('descripcion', 'Candidato al Senado')
+            ->set('cargo', 'senado') // nacional: no exige lugar
             ->call('guardar')
             ->assertHasNoErrors();
 

@@ -53,7 +53,6 @@ class CampaignComposer extends Component
     public function mount(): void
     {
         abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
-        $this->exigirTenant();
     }
 
     public function createAndSend()

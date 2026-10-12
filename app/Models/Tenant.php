@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\CargoEnum;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -16,6 +18,9 @@ class Tenant extends Model
     protected $fillable = [
         'nombre',
         'descripcion',
+        'cargo',
+        'departamento_id',
+        'municipio_id',
         'slug',
         'activo',
         'twilio_messaging_service_sid',
@@ -23,6 +28,7 @@ class Tenant extends Model
 
     protected $casts = [
         'activo' => 'boolean',
+        'cargo' => CargoEnum::class,
     ];
 
     protected static function booted(): void
@@ -46,6 +52,55 @@ class Tenant extends Model
         }
 
         return $slug;
+    }
+
+    public function departamento(): BelongsTo
+    {
+        return $this->belongsTo(Departamento::class);
+    }
+
+    public function municipio(): BelongsTo
+    {
+        return $this->belongsTo(Municipio::class);
+    }
+
+    /**
+     * Ámbito de la circunscripción, o null si al tenant le falta el cargo o
+     * el lugar (p. ej. el "Tenant inicial" sin completar).
+     */
+    public function ambito(): ?string
+    {
+        if (! $this->cargo) {
+            return null;
+        }
+
+        if ($this->cargo->requiereMunicipio() && ! $this->municipio_id) {
+            return null;
+        }
+
+        if ($this->cargo->requiereDepartamento() && ! $this->departamento_id) {
+            return null;
+        }
+
+        return $this->cargo->ambito();
+    }
+
+    /** "Gobernación · META", "Concejo municipal · Villavicencio (META)", "Senado · Nacional". */
+    public function circunscripcionTexto(): string
+    {
+        if (! $this->cargo) {
+            return 'Sin cargo definido';
+        }
+
+        $lugar = match ($this->cargo->ambito()) {
+            CargoEnum::AMBITO_NACIONAL => 'Nacional',
+            CargoEnum::AMBITO_DEPARTAMENTAL => $this->departamento?->nombre ?? 'sin departamento',
+            CargoEnum::AMBITO_MUNICIPAL => $this->municipio
+                ? "{$this->municipio->nombre} ({$this->departamento?->nombre})"
+                : 'sin municipio',
+        };
+
+        return "{$this->cargo->label()} · {$lugar}";
     }
 
     public function users(): HasMany
