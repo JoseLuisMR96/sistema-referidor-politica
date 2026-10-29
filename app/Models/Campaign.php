@@ -40,14 +40,6 @@ class Campaign extends Model
     }
 
     /**
-     * Lotes de procesamiento para control de velocidad
-     */
-    public function batches(): HasMany
-    {
-        return $this->hasMany(CampaignBatch::class);
-    }
-
-    /**
      * Respuestas de botones capturadas desde webhooks
      */
     public function responses(): HasMany
@@ -144,38 +136,6 @@ class Campaign extends Model
     // ===== MÉTODOS =====
 
     /**
-     * Pausa la campaña
-     */
-    public function pause(): void
-    {
-        if (!$this->status->canPause()) {
-            throw new \RuntimeException("No se puede pausar campaña con estado: {$this->status->label()}");
-        }
-
-        $this->update(['status' => CampaignStatusEnum::PAUSED]);
-    }
-
-    /**
-     * Reanuda campaña pausada
-     */
-    public function resume(): void
-    {
-        if (!$this->status->canResume()) {
-            throw new \RuntimeException("No se puede reanudar campaña con estado: {$this->status->label()}");
-        }
-
-        $this->update(['status' => CampaignStatusEnum::BATCHED]);
-    }
-
-    /**
-     * Cancela la campaña
-     */
-    public function cancel(): void
-    {
-        $this->update(['status' => CampaignStatusEnum::CANCELLED]);
-    }
-
-    /**
      * Obtiene estadísticas de respuestas por botón
      */
     public function getResponseStats(): array
@@ -198,8 +158,9 @@ class Campaign extends Model
      */
     public function getDeliveredCount(): int
     {
+        // 'read' implica entregado
         return $this->messages()
-            ->where('status', 'delivered')
+            ->whereIn('status', ['delivered', 'read'])
             ->count();
     }
 
@@ -219,7 +180,7 @@ class Campaign extends Model
     public function getSentCount(): int
     {
         return $this->messages()
-            ->whereIn('status', ['sent', 'delivered'])
+            ->whereIn('status', ['sent', 'delivered', 'read'])
             ->count();
     }
 

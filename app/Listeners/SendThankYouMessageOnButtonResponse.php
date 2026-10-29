@@ -2,111 +2,62 @@
 
 namespace App\Listeners;
 
+use App\Enums\ButtonIdEnum;
 use App\Events\ButtonResponseCaptured;
-use App\Models\CampaignMessage;
+use App\Support\PhoneNumber;
 use Illuminate\Support\Facades\Log;
 use Twilio\Rest\Client;
 
 /**
- * Listener que envía un mensaje de agradecimiento cuando se captura una respuesta
+ * Listener que envía un mensaje de agradecimiento cuando se captura una respuesta.
+ *
+ * El agradecimiento NO se guarda como CampaignMessage: antes sí, y cada
+ * respuesta sumaba un mensaje a la campaña, inflando total_messages y las
+ * tasas de entrega y respuesta. El resultado queda en la propia respuesta
+ * (processing_status / processing_error).
  */
 class SendThankYouMessageOnButtonResponse
 {
     public function handle(ButtonResponseCaptured $event): void
     {
+        $response = $event->response;
+
         try {
-            $response = $event->response;
-            $campaign = $response->campaign;
-            $originalMessage = $response->campaignMessage;
-
-            // Mapear ID de botón a mensaje personalizado
-            $thankYouMessages = [
-                'palom' => '✅ ¡Gracias por tu voto! Tu preferencia por Paloma Valencia ha sido registrada. 🕊️',
-                'cepeda' => '✅ ¡Gracias por tu voto! Tu preferencia por Cepeda ha sido registrada. 🎯',
-                'otro_candidato' => '✅ ¡Gracias por tu voto! Tu preferencia ha sido registrada. 🤝',
-            ];
-
-            $thankYouText = $thankYouMessages[$response->button_id] 
+            $thankYouText = ButtonIdEnum::tryFrom($response->button_id)?->thankYouMessage()
                 ?? '✅ ¡Gracias por tu respuesta! Ha sido registrada correctamente.';
 
-            // Guardar el mensaje de agradecimiento en BD
-            $thankYouMsg = CampaignMessage::create([
-                'campaign_id' => $campaign->id,
-                'to' => $response->phone,
-                'contact_name' => null,
-                'status' => 'pending',
-                'referrer_id' => $response->referrer_id,
-                'referidor_pregonero_id' => $response->referidor_pregonero_id,
-                'source_type' => $originalMessage->source_type ?? 'twilio',
-                'raw_webhook' => [
-                    'type' => 'thank_you',
-                    'original_response_id' => $response->id,
-                ],
+            $destino = PhoneNumber::toWhatsApp($response->phone);
+
+            if (! $destino) {
+                $response->markAsError('No se envía agradecimiento: teléfono inválido');
+
+                return;
+            }
+
+            $client = new Client(config('services.twilio.sid'), config('services.twilio.token'));
+
+            // El MSID guardado en la respuesta capturada tiene prioridad
+            $msid = $response->messaging_service_id ?: config('services.twilio.messaging_service_sid');
+
+            $result = $client->messages->create($destino, [
+                'messagingServiceSid' => $msid,
+                'body' => $thankYouText,
             ]);
 
-            // Extraer MSID guardado en la respuesta capturada
-            $messagingServiceSid = $response->messaging_service_id ?? null;
+            $response->markAsProcessed();
 
-            // Enviar directamente a Twilio
-            $this->sendViaWhatsApp($thankYouText, $response->phone, $thankYouMsg, $messagingServiceSid);
-
-            Log::info('Thank you message sent', [
+            Log::info('Mensaje de agradecimiento enviado', [
                 'response_id' => $response->id,
                 'button_id' => $response->button_id,
-                'phone' => $response->phone,
-                'message_id' => $thankYouMsg->id,
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error sending thank you message', [
-                'error' => $e->getMessage(),
-                'response_id' => $event->response->id ?? 'unknown',
-            ]);
-        }
-    }
-
-    /**
-     * Envía directamente a Twilio sin ir por el job
-     */
-    private function sendViaWhatsApp(string $body, string $phone, CampaignMessage $messageRecord, ?string $messagingServiceSid = null): void
-    {
-        $client = new Client(config('services.twilio.sid'), config('services.twilio.token'));
-        $msid = $messagingServiceSid ?? config('services.twilio.messaging_service_sid');
-
-        $normalizedPhone = preg_replace('/\D/', '', $phone);
-        if (!str_starts_with($normalizedPhone, '+')) {
-            $normalizedPhone = '+' . $normalizedPhone;
-        }
-        
-        // Add whatsapp: prefix for WhatsApp messaging
-        $whatsappPhone = 'whatsapp:' . $normalizedPhone;
-
-        try {
-            $result = $client->messages->create(
-                $whatsappPhone,
-                [
-                    'messagingServiceSid' => $msid,
-                    'body' => $body,
-                    'statusCallback' => url('/api/twilio/whatsapp/status'),
-                ]
-            );
-
-            // Actualizar registro con el SID de Twilio
-            $messageRecord->update([
                 'twilio_sid' => $result->sid,
-                'status' => 'sent',
-                'sent_at' => now(),
             ]);
+        } catch (\Throwable $e) {
+            $response->markAsError(mb_substr($e->getMessage(), 0, 1000));
 
-        } catch (\Exception $e) {
-            $messageRecord->update([
-                'status' => 'failed',
-                'error_message' => $e->getMessage(),
+            Log::error('Error enviando mensaje de agradecimiento', [
+                'error' => $e->getMessage(),
+                'response_id' => $response->id,
             ]);
-
-            throw $e;
         }
     }
 }
-
-

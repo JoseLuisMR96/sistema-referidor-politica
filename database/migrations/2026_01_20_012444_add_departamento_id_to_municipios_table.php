@@ -39,14 +39,16 @@ return new class extends Migration {
             );
         }
 
-        // 3) Actualiza municipios.departamento_id según el nombre
-        DB::statement("
-            UPDATE municipios m
-            JOIN departamentos d
-              ON d.nombre = UPPER(TRIM(m.departamento))
-            SET m.departamento_id = d.id
-            WHERE m.departamento_id IS NULL
-        ");
+        // 3) Actualiza municipios.departamento_id según el nombre.
+        //    Se hace departamento por departamento en vez de con UPDATE ... JOIN
+        //    porque esa sintaxis solo existe en MySQL y rompía la suite de tests
+        //    (phpunit.xml corre sobre sqlite).
+        foreach (DB::table('departamentos')->get(['id', 'nombre']) as $departamento) {
+            DB::table('municipios')
+                ->whereNull('departamento_id')
+                ->whereRaw('UPPER(TRIM(departamento)) = ?', [$departamento->nombre])
+                ->update(['departamento_id' => $departamento->id]);
+        }
 
         // 4) Ahora sí: vuelve NOT NULL, ajusta índices, y opcionalmente elimina 'departamento'
         Schema::table('municipios', function (Blueprint $table) {
@@ -77,11 +79,11 @@ return new class extends Migration {
         });
 
         // intenta rellenar el texto desde departamentos
-        DB::statement("
-            UPDATE municipios m
-            JOIN departamentos d ON d.id = m.departamento_id
-            SET m.departamento = d.nombre
-        ");
+        foreach (DB::table('departamentos')->get(['id', 'nombre']) as $departamento) {
+            DB::table('municipios')
+                ->where('departamento_id', $departamento->id)
+                ->update(['departamento' => $departamento->nombre]);
+        }
 
         Schema::table('municipios', function (Blueprint $table) {
             $table->dropIndex(['departamento_id', 'nombre']);

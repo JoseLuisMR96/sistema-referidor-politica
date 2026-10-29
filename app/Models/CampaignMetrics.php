@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ButtonIdEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -43,35 +44,44 @@ class CampaignMetrics extends Model
     // ===== MÉTODOS =====
 
     /**
-     * Actualiza todos los contadores basados en la campaña
+     * Recalcula todos los contadores a partir de la campaña.
+     *
+     * OJO: no se llama refresh() para no pisar Eloquent\Model::refresh(),
+     * que recarga el modelo desde la BD y devuelve $this.
      */
-    public function refresh(): void
+    public function recalcular(): void
     {
         if (!$this->exists) {
             $this->updated_at = now();
         }
         $campaign = $this->campaign;
-        
+
         $totalMessages = $campaign->messages()->count();
-        $sentCount = $campaign->messages()->whereIn('status', ['sent', 'delivered'])->count();
-        $deliveredCount = $campaign->messages()->where('status', 'delivered')->count();
+        // 'read' implica entregado (y enviado)
+        $sentCount = $campaign->messages()->whereIn('status', ['sent', 'delivered', 'read'])->count();
+        $deliveredCount = $campaign->messages()->whereIn('status', ['delivered', 'read'])->count();
         $failedCount = $campaign->messages()->whereIn('status', ['failed', 'undelivered'])->count();
 
         $totalResponses = $campaign->responses()->count();
-        $polomCount = $campaign->responses()->where('button_id', 'palom')->count();
-        $cepedaCount = $campaign->responses()->where('button_id', 'cepeda')->count();
-        $otroCount = $campaign->responses()->where('button_id', 'otro_candidato')->count();
+
+        $conteoPorBoton = [];
+        foreach (ButtonIdEnum::cases() as $button) {
+            $conteoPorBoton[$button->countField()] = $campaign->responses()
+                ->where('button_id', $button->value)
+                ->count();
+        }
 
         $deliveryRate = $totalMessages > 0 ? round(($deliveredCount / $totalMessages) * 100, 2) : 0;
         $responseRate = $totalMessages > 0 ? round(($totalResponses / $totalMessages) * 100, 2) : 0;
 
         // Calcular tiempos promedio
         $deliveryTimes = $campaign->messages()
-            ->where('status', 'delivered')
+            ->whereIn('status', ['delivered', 'read'])
             ->whereNotNull('delivered_at')
             ->whereNotNull('sent_at')
-            ->selectRaw('TIMESTAMPDIFF(SECOND, sent_at, delivered_at) as seconds')
-            ->pluck('seconds');
+            ->get(['sent_at', 'delivered_at'])
+            // En PHP y no con TIMESTAMPDIFF, que solo existe en MySQL
+            ->map(fn (CampaignMessage $m) => max(0, (int) $m->sent_at->diffInSeconds($m->delivered_at)));
 
         $avgDeliveryTime = $deliveryTimes->isEmpty() ? null : intval($deliveryTimes->avg());
         $fastestDelivery = $deliveryTimes->isEmpty() ? null : intval($deliveryTimes->min());
@@ -83,9 +93,7 @@ class CampaignMetrics extends Model
             'delivered_count' => $deliveredCount,
             'failed_count' => $failedCount,
             'total_responses' => $totalResponses,
-            'palom_count' => $polomCount,
-            'cepeda_count' => $cepedaCount,
-            'otro_count' => $otroCount,
+            ...$conteoPorBoton,
             'delivery_rate' => $deliveryRate,
             'response_rate' => $responseRate,
             'avg_delivery_time_seconds' => $avgDeliveryTime,
@@ -106,27 +114,23 @@ class CampaignMetrics extends Model
      */
     public function incrementButtonResponse(string $buttonId): void
     {
-        $field = match ($buttonId) {
-            'palom' => 'palom_count',
-            'cepeda' => 'cepeda_count',
-            'otro_candidato' => 'otro_count',
-            default => null,
-        };
+        $button = ButtonIdEnum::tryFrom($buttonId);
 
-        if ($field) {
-            $this->increment($field);
-            $this->increment('total_responses');
-            
-            // Recalcular respuesta_rate
-            if ($this->campaign->messages()->count() > 0) {
-                $this->update([
-                    'response_rate' => round(
-                        ($this->total_responses / $this->campaign->messages()->count()) * 100,
-                        2
-                    ),
-                    'updated_at' => now(),
-                ]);
-            }
+        if (! $button) {
+            return;
+        }
+
+        $this->increment($button->countField());
+        $this->increment('total_responses');
+
+        // Recalcular response_rate
+        $totalMessages = $this->campaign->messages()->count();
+
+        if ($totalMessages > 0) {
+            $this->update([
+                'response_rate' => round(($this->total_responses / $totalMessages) * 100, 2),
+                'updated_at' => now(),
+            ]);
         }
     }
 
@@ -135,11 +139,11 @@ class CampaignMetrics extends Model
      */
     public function getMostVoted(): ?string
     {
-        $votes = [
-            'palom' => $this->palom_count,
-            'cepeda' => $this->cepeda_count,
-            'otro_candidato' => $this->otro_count,
-        ];
+        $votes = [];
+
+        foreach (ButtonIdEnum::cases() as $button) {
+            $votes[$button->value] = (int) $this->{$button->countField()};
+        }
 
         arsort($votes);
         $topButton = array_key_first($votes);
@@ -156,12 +160,8 @@ class CampaignMetrics extends Model
             return 0;
         }
 
-        $count = match ($buttonId) {
-            'palom' => $this->palom_count,
-            'cepeda' => $this->cepeda_count,
-            'otro_candidato' => $this->otro_count,
-            default => 0,
-        };
+        $button = ButtonIdEnum::tryFrom($buttonId);
+        $count = $button ? (int) $this->{$button->countField()} : 0;
 
         return round(($count / $this->total_responses) * 100, 2);
     }

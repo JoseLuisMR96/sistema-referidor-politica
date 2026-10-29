@@ -92,7 +92,8 @@ class CampaignMessage extends Model
      */
     public function scopeDelivered($query)
     {
-        return $query->where('status', 'delivered');
+        // 'read' implica entregado
+        return $query->whereIn('status', ['delivered', 'read']);
     }
 
     /**
@@ -133,7 +134,7 @@ class CampaignMessage extends Model
     /**
      * Marca mensaje como fallido
      */
-    public function markAsFailed(string $errorMessage, string $errorCode = null): void
+    public function markAsFailed(string $errorMessage, ?string $errorCode = null): void
     {
         $this->update([
             'status' => 'failed',

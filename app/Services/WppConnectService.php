@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\PhoneNumber;
 use Illuminate\Support\Facades\Http;
 
 class WppConnectService
@@ -74,13 +75,17 @@ class WppConnectService
 
     public function sendCampaignImageWithText(string $session, string $phone, string $message): array
     {
-        $imageUrl = 'https://metatankpolitic.com/campanapolitica/loperasenadora.png';
+        $imageUrl = (string) config('services.wppconnect.campaign_image_url');
+
+        if ($imageUrl === '') {
+            throw new \RuntimeException('WPPCONNECT_CAMPAIGN_IMAGE_URL no está configurado.');
+        }
 
         return $this->sendImage($session, $phone, $imageUrl, $message);
     }
 
     private function normalizePhone(string $phone): string
     {
-        return preg_replace('/\D+/', '', $phone);
+        return PhoneNumber::digits($phone);
     }
 }

@@ -81,6 +81,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('whatsapp.campaigns.create');
 
     Route::get('/whatsapp/whatsapp-outbox', WhatsappOutboxManager::class)
+        ->middleware('permission:whatsapp.enviar')
         ->name('whatsapp.whatsapp.outbox');
 
     /*
@@ -116,6 +117,7 @@ Route::middleware(['auth'])->group(function () {
             ->name('pregoneros.referidores.index');
 
         Route::get('/admin/referidores-pregoneros/crear', ReferidoresCreate::class)
+            ->middleware('permission:pregoneros_referidores.crear')
             ->name('pregoneros.referidores.create');
 
         Route::get('/admin/referidores-pregoneros/export-masivo', [ReferidoresPregonerosMasivoExportController::class, 'xlsx'])
@@ -130,6 +132,7 @@ Route::middleware(['auth'])->group(function () {
             ->name('pregoneros.referidores.show');
 
         Route::get('/admin/referidores-pregoneros/{referidor}/export-referidos', [ReferidosPregonerosExportController::class, 'csv'])
+            ->middleware('permission:pregoneros_referidos.exportar')
             ->name('referidores.export_referidos');
     });
 

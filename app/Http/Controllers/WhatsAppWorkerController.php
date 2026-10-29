@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\WhatsAppOutbox;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -11,8 +10,13 @@ class WhatsAppWorkerController extends Controller
 {
     private function authOrFail(Request $request): void
     {
-        $token = $request->query('token') ?? $request->input('token');
-        abort_unless(hash_equals(config('services.whatsapp_worker.token'), (string)$token), 401, 'Unauthorized');
+        $expected = (string) config('services.whatsapp_worker.token');
+        $token = (string) ($request->query('token') ?? $request->input('token'));
+
+        // Sin token configurado no se autoriza a nadie (antes esto lanzaba un
+        // TypeError y devolvía 500 en lugar de 401).
+        abort_if($expected === '', 401, 'Unauthorized');
+        abort_unless(hash_equals($expected, $token), 401, 'Unauthorized');
     }
 
     public function pull(Request $request)

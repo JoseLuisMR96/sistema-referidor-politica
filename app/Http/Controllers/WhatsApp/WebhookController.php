@@ -2,69 +2,40 @@
 
 namespace App\Http\Controllers\WhatsApp;
 
-use App\Actions\WhatsApp\CaptureButtonResponseAction;
-use App\Actions\WhatsApp\UpdateMessageStatusAction;
-use App\DTOs\ButtonResponseDTO;
+use App\Actions\WhatsApp\ProcessTwilioWebhookAction;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Twilio\Security\RequestValidator;
 
 /**
- * Controller para manejar webhooks de Twilio
- * Recibe actualizaciones de estado de mensajes y respuestas de botones
+ * Webhook de Twilio de la arquitectura de campañas refactorizada.
+ *
+ * Comparte el procesamiento con los endpoints /api/twilio/whatsapp/*, así que
+ * reconoce tanto ButtonPayload como el texto del botón en el body.
+ * La firma se valida en el middleware `twilio.signature`.
  */
 class WebhookController extends Controller
 {
     public function __construct(
-        private UpdateMessageStatusAction $updateStatus,
-        private CaptureButtonResponseAction $captureButton,
+        private ProcessTwilioWebhookAction $processWebhook,
     ) {}
 
-    /**
-     * Maneja webhook de Twilio para estado de mensajes y respuestas
-     */
-    public function handle(
-        Request $request,
-    ): \Illuminate\Http\Response {
-        // 1. Validar firma de Twilio
-        $signature = $request->header('X-Twilio-Signature');
-        $validator = new RequestValidator(config('services.twilio.token'));
-        $url = $request->fullUrl();
-        $params = $request->all();
-
-        if (!$validator->validate($signature, $url, $params)) {
-            Log::warning('Invalid Twilio webhook signature', ['url' => $url]);
-            return response('Invalid signature', 403);
-        }
-
+    public function handle(Request $request): \Illuminate\Http\Response
+    {
         try {
-            // 2. Actualizar estado del mensaje
-            $message = $this->updateStatus->execute($params);
-
-            // 3. Si hay respuesta de botón, capturarla
-            if (!empty($params['ButtonPayload']) && $message) {
-                $dto = ButtonResponseDTO::fromTwilioPayload(
-                    $params,
-                    $message->campaign_id,
-                    $message->id
-                );
-
-                $response = $this->captureButton->execute($dto);
-
-                // Disparar evento para listeners
-                if ($response) {
-                    event(new \App\Events\ButtonResponseCaptured($response));
-                }
-            }
+            $this->processWebhook->execute(
+                $request->all(),
+                $request->ip(),
+                $request->userAgent(),
+            );
 
             return response('ok', 200);
-
-        } catch (\Exception $e) {
-            Log::error('Error processing Twilio webhook', [
+        } catch (\Throwable $e) {
+            Log::error('Error procesando webhook Twilio', [
                 'error' => $e->getMessage(),
-                'params' => $params,
+                'trace' => $e->getTraceAsString(),
             ]);
+
             return response('Error processing webhook', 500);
         }
     }

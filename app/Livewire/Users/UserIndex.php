@@ -19,6 +19,8 @@ class UserIndex extends Component
 
     public function render()
     {
+        abort_unless(auth()->user()->can('usuarios.ver'), 403);
+
         $q = User::query()
             ->when($this->search !== '', function ($query) {
                 $s = trim($this->search);

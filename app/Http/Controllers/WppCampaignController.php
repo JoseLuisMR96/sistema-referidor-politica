@@ -9,6 +9,14 @@ class WppCampaignController extends Controller
 {
     public function send(Request $request, WppCampaignService $service)
     {
+        // Endpoint público de la API: sin token configurado no se autoriza a
+        // nadie, igual que WhatsAppWorkerController.
+        $expected = (string) config('services.wppconnect.api_token');
+        $token = (string) $request->bearerToken();
+
+        abort_if($expected === '', 401, 'Unauthorized');
+        abort_unless(hash_equals($expected, $token), 401, 'Unauthorized');
+
         $request->validate([
             'name' => 'required|string|max:255',
             'message' => 'required|string',

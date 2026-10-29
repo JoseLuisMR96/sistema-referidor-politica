@@ -5,6 +5,7 @@ namespace App\Livewire\Whatsapp;
 use App\Jobs\SendWhatsappCampaignMessage;
 use App\Models\WhatsappCampaign;
 use App\Models\WhatsappMessage;
+use App\Support\PhoneNumber;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -41,10 +42,20 @@ class CampaignComposer extends Component
     public ?string $contentSid = null;        // HX... (Twilio Content SID)
     public ?string $contentVarsJson = null;   // JSON de variables
 
+    // Números descartados por inválidos en el último envío
+    public int $invalidPhones = 0;
 
+
+
+    public function mount(): void
+    {
+        abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+    }
 
     public function createAndSend()
     {
+        abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+
         $usingTemplate = (bool) $this->useTwilioCampaign;
 
         $rules = [
@@ -89,11 +100,44 @@ class CampaignComposer extends Component
 
         $this->validate($rules);
 
+        $this->invalidPhones = 0;
+
         // Validar JSON variables del template si vienen
         if ($usingTemplate && $this->contentVarsJson) {
             json_decode($this->contentVarsJson, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $this->addError('contentVarsJson', 'JSON inválido.');
+                return;
+            }
+        }
+
+        // El número de prueba se valida antes de crear la campaña, para no
+        // dejar campañas huérfanas si viene mal escrito.
+        $testTo = null;
+        if ($this->testMode && !$this->testOnlyFirstN) {
+            $testTo = PhoneNumber::toWhatsApp($this->testPhone);
+
+            if (! $testTo) {
+                $this->addError('testPhone', 'Número de prueba inválido. Usa 10 dígitos (3001234567) o el formato +573001234567.');
+                return;
+            }
+        }
+
+        $rows = [];
+        if (! $testTo) {
+            $rows = $this->recipientsSource === 'excel'
+                ? $this->parseRecipientsFromExcel($this->recipientsFile)
+                : $this->parseRecipients($this->recipientsText);
+
+            if ($this->testMode && $this->testOnlyFirstN) {
+                $rows = array_slice($rows, 0, (int) $this->testN);
+            }
+
+            if (empty($rows)) {
+                $this->addError(
+                    $this->recipientsSource === 'excel' ? 'recipientsFile' : 'recipientsText',
+                    'No hay ningún número válido para enviar.'
+                );
                 return;
             }
         }
@@ -144,37 +188,31 @@ class CampaignComposer extends Component
 
         $campaign->save();
 
-        $rows = $this->recipientsSource === 'excel'
-            ? $this->parseRecipientsFromExcel($this->recipientsFile)
-            : $this->parseRecipients($this->recipientsText);
-
-        if ($this->testMode && $this->testOnlyFirstN) {
-            $rows = array_slice($rows, 0, (int) $this->testN);
-        }
-
-        // Si testMode y NO testOnlyFirstN, enviamos SOLO al número de prueba
-        if ($this->testMode && !$this->testOnlyFirstN) {
-            $to = $this->normalizeWhatsapp($this->testPhone);
-
+        // Si testMode y NO testOnlyFirstN, enviamos SOLO al número de prueba.
+        // OJO con los estados: campaign_messages.status es un ENUM en MySQL
+        // (sin 'created') y campaigns.status debe ser un caso de
+        // CampaignStatusEnum (sin 'active').
+        if ($testTo) {
             $msg = WhatsappMessage::create([
                 'campaign_id' => $campaign->id,
-                'to' => $to,
+                'to' => $testTo,
                 'contact_name' => 'TEST',
-                'status' => 'created',
+                'status' => 'pending',
             ]);
 
             SendWhatsappCampaignMessage::dispatch($msg->id)->onQueue('whatsapp');
 
-            $campaign->update(['total' => 1, 'status' => 'active']);
+            $campaign->update(['total' => 1, 'status' => 'sending']);
 
             session()->flash('ok', '✅ Envío de PRUEBA en cola. Revisa WhatsApp y el dashboard de estados.');
             $this->resetForm();
             return;
         }
 
-        // Envío normal (o primeros N)
+        // Envío normal (o primeros N). parseRecipients* ya dejó solo números
+        // válidos en formato whatsapp:+57...
         foreach ($rows as $r) {
-            $to = $this->normalizeWhatsapp($r['phone']);
+            $to = $r['phone'];
 
             $msg = WhatsappMessage::create([
                 'campaign_id' => $campaign->id,
@@ -186,9 +224,14 @@ class CampaignComposer extends Component
             SendWhatsappCampaignMessage::dispatch($msg->id)->onQueue('whatsapp');
         }
 
-        $campaign->update(['total' => $campaign->messages()->count(), 'status' => 'active']);
+        $campaign->update(['total' => $campaign->messages()->count(), 'status' => 'sending']);
 
-        session()->flash('ok', '✅ Campaña en cola. La cola se encarga y tu dashboard se actualiza con estados.');
+        $mensaje = '✅ Campaña en cola. La cola se encarga y tu dashboard se actualiza con estados.';
+        if ($this->invalidPhones > 0) {
+            $mensaje .= " Se omitieron {$this->invalidPhones} números inválidos.";
+        }
+
+        session()->flash('ok', $mensaje);
         $this->resetForm();
     }
 
@@ -232,20 +275,15 @@ class CampaignComposer extends Component
             $phone = trim($parts[0]);
             $name  = isset($parts[1]) ? trim($parts[1]) : null;
 
-            $out[] = ['phone' => $phone, 'name' => $name];
+            $to = PhoneNumber::toWhatsApp($phone);
+            if (! $to) {
+                $this->invalidPhones++;
+                continue;
+            }
+
+            $out[] = ['phone' => $to, 'name' => $name];
         }
         return $out;
-    }
-
-    private function normalizeWhatsapp(string $phone): string
-    {
-        $p = trim($phone);
-
-        // Si ya viene con whatsapp:
-        if (str_starts_with($p, 'whatsapp:')) return $p;
-
-        // Acepta +57..., etc.
-        return 'whatsapp:' . $p;
     }
 
     private function parseRecipientsFromExcel($file): array
@@ -294,9 +332,14 @@ class CampaignComposer extends Component
 
             $rawName = $nameCol ? trim((string)($row[$nameCol] ?? '')) : '';
 
-            // construye
+            $to = PhoneNumber::toWhatsApp($rawPhone);
+            if (! $to) {
+                $this->invalidPhones++;
+                continue;
+            }
+
             $out[] = [
-                'phone' => $this->normalizePhoneLoose($rawPhone),
+                'phone' => $to,
                 'name'  => $rawName !== '' ? $rawName : null,
             ];
         }
@@ -319,25 +362,6 @@ class CampaignComposer extends Component
         return trim($h);
     }
 
-    private function normalizePhoneLoose(string $p): string
-    {
-        $p = trim($p);
-
-        // elimina espacios, guiones, paréntesis
-        $p = preg_replace('/[^\d\+]/', '', $p);
-
-        // si viene tipo 3142874901 (10 dígitos) => asumimos Colombia +57
-        if (!str_starts_with($p, '+') && preg_match('/^\d{10}$/', $p)) {
-            $p = '+57' . $p;
-        }
-
-        // si viene 573142... sin +, se lo ponemos
-        if (!str_starts_with($p, '+') && preg_match('/^57\d{10}$/', $p)) {
-            $p = '+' . $p;
-        }
-
-        return $p;
-    }
 
     public function render()
     {

@@ -33,6 +33,27 @@ return [
         'token' => env('TWILIO_AUTH_TOKEN'),
         'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
         'messaging_service_sid' => env('TWILIO_MESSAGING_SERVICE_SID'),
+
+        // Ruta que se registra como statusCallback en cada mensaje enviado.
+        // Debe coincidir con la configurada en la consola de Twilio.
+        'status_callback_path' => env('TWILIO_STATUS_CALLBACK_PATH', '/api/twilio/whatsapp/status'),
+
+        // Solo desactívalo en local: sin firma cualquiera puede inyectar
+        // respuestas falsas en los webhooks.
+        'verify_webhook_signature' => (bool) env('TWILIO_VERIFY_WEBHOOK_SIGNATURE', true),
+    ],
+
+    'wppconnect' => [
+        'base_url' => env('WPPCONNECT_BASE_URL'),
+        'token' => env('WPPCONNECT_TOKEN'),
+        'default_session' => env('WPPCONNECT_DEFAULT_SESSION', 'default'),
+        'delay_min_seconds' => (int) env('WPPCONNECT_DELAY_MIN_SECONDS', 10),
+        'delay_max_seconds' => (int) env('WPPCONNECT_DELAY_MAX_SECONDS', 25),
+        'campaign_image_url' => env('WPPCONNECT_CAMPAIGN_IMAGE_URL'),
+
+        // Token que deben mandar los clientes de POST /api/wpp/campaigns/send
+        // (Authorization: Bearer …). Vacío = endpoint cerrado.
+        'api_token' => env('WPPCONNECT_API_TOKEN'),
     ],
 
     'retell' => [
