@@ -17,7 +17,8 @@ class ImportarHistoricoArchivoCommand extends Command
         {ruta : CSV o Excel}
         {--anio= : Año, si el archivo no lo trae}
         {--cargo= : Cargo (gobernacion, alcaldia, presidencia...), si el archivo no lo trae}
-        {--vuelta= : 1 o 2 (presidencia), si el archivo no lo trae}';
+        {--vuelta= : 1 o 2 (presidencia), si el archivo no lo trae}
+        {--sin-precalcular : No llenar la caché al final (útil al cargar varios archivos seguidos)}';
 
     protected $description = 'Importa un archivo de resultados electorales al histórico';
 
@@ -57,7 +58,7 @@ class ImportarHistoricoArchivoCommand extends Command
             $this->error($e);
         }
 
-        if ($r['insertadas']) {
+        if ($r['insertadas'] && ! $this->option('sin-precalcular')) {
             $this->call('historico:precalcular');
         }
 

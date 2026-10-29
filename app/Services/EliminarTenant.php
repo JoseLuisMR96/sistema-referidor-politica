@@ -83,7 +83,7 @@ class EliminarTenant
             $tenant->delete();
         });
 
-        foreach ([$tenant->logo_path, $tenant->foto_path] as $ruta) {
+        foreach ([$tenant->logo_path, $tenant->foto_path, $tenant->fondo_path] as $ruta) {
             if ($ruta) {
                 Storage::disk('public')->delete($ruta);
             }

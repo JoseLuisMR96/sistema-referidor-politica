@@ -292,8 +292,15 @@
                 </div>
             @endif
 
+            {{-- Imagen de fondo del candidato (bandera, tigre...): decorativa, detrás de las tarjetas --}}
+            @if ($tenantActual?->fondoUrl())
+                <div aria-hidden="true"
+                    class="pointer-events-none fixed bottom-0 right-0 left-0 lg:left-72 h-[55vh] z-0 opacity-[0.18] bg-no-repeat"
+                    style="background-image: url('{{ $tenantActual->fondoUrl() }}'); background-position: left bottom; background-size: 100% auto;"></div>
+            @endif
+
             {{-- CONTENT --}}
-            <main class="flex-1 px-4 sm:px-6 py-6">
+            <main class="relative z-10 flex-1 px-4 sm:px-6 py-6">
                 @if (session('tenant_aviso'))
                     <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
                         {{ session('tenant_aviso') }}

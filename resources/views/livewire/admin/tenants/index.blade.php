@@ -174,6 +174,22 @@
                                 <button type="button" wire:click="quitarArchivo('foto')" class="mt-1 text-xs text-rose-600 underline">Quitar foto actual</button>
                             @endif
                         </div>
+
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-semibold">Imagen de fondo</label>
+                            <input type="file" wire:model="fondo" accept="image/png,image/jpeg,image/webp" class="mt-1 block w-full text-sm">
+                            <div class="text-xs text-gray-500 mt-1">
+                                PNG o WEBP con fondo transparente, máx. 6 MB (p. ej. la bandera o el tigre con la bandera).
+                                Se ve suave detrás de las tarjetas en toda la app y en sus formularios de registro.
+                            </div>
+                            @error('fondo') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                            @if ($fondo && ! $errors->has('fondo'))
+                                <img src="{{ $fondo->temporaryUrl() }}" alt="" class="mt-2 h-20 w-auto rounded border object-contain">
+                            @elseif ($tenantEditado?->fondoUrl())
+                                <img src="{{ $tenantEditado->fondoUrl() }}" alt="" class="mt-2 h-20 w-auto rounded border object-contain">
+                                <button type="button" wire:click="quitarArchivo('fondo')" class="mt-1 block text-xs text-rose-600 underline">Quitar imagen de fondo</button>
+                            @endif
+                        </div>
                     </div>
 
                     {{-- Vista previa (con los valores del formulario, sin guardar) --}}

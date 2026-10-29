@@ -25,6 +25,7 @@ class Tenant extends Model
         'tema_completo',
         'logo_path',
         'foto_path',
+        'fondo_path',
         'cargo',
         'departamento_id',
         'municipio_id',
@@ -117,12 +118,17 @@ class Tenant extends Model
      */
     public function logoUrl(): ?string
     {
-        return $this->logo_path ? route('marca.archivo', [$this->slug, 'logo', 'v' => $this->updated_at?->timestamp]) : null;
+        return $this->logo_path ? route('marca.archivo', [$this->slug, 'logo', 'v' => $this->updated_at?->timestamp], false) : null;
     }
 
     public function fotoUrl(): ?string
     {
-        return $this->foto_path ? route('marca.archivo', [$this->slug, 'foto', 'v' => $this->updated_at?->timestamp]) : null;
+        return $this->foto_path ? route('marca.archivo', [$this->slug, 'foto', 'v' => $this->updated_at?->timestamp], false) : null;
+    }
+
+    public function fondoUrl(): ?string
+    {
+        return $this->fondo_path ? route('marca.archivo', [$this->slug, 'fondo', 'v' => $this->updated_at?->timestamp], false) : null;
     }
 
     public function users(): HasMany

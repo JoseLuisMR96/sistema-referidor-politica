@@ -300,4 +300,34 @@ class HistoricoElectoralTest extends TestCase
 
         $this->assertSame('COMUNA 1 CENTRO', DB::table('historico_electoral')->where('cargo', 'jal')->value('comuna'));
     }
+
+    public function test_congreso_2022_en_utf16_filtra_circunscripciones_especiales(): void
+    {
+        $enc = 'Código Departamento,Nombre Departamento,Código Municipio,Nombre Municipio,Código Zona,Código Puesto,Nombre Puesto,Mesa,Código Comuna,Nombre Comuna,Código Corporación,Nombre Corporación,Código Circunscripción,Nombre Circunscripción,Código CITREP,Nombre CITREP,Código Partido,Nombre Partido,Código Candidato,Nombre Candidato,Total Votos';
+        $fila = fn ($corp, $circ, $citrep, $partido, $codCand, $cand, $votos) => "\"52\",\"META\",\"001\",\"VILLAVICENCIO\",\"00\",\"00\",\"PUESTO\",\"0001\",\"00\",\"N/A\",\"01\",\"{$corp}\",\"01\",\"{$circ}\",\"00\",\"{$citrep}\",\"0011\",\"{$partido}\",\"{$codCand}\",\"{$cand}\",{$votos}";
+
+        $texto = implode("\r\n", [
+            $enc,
+            $fila('CAMARA', 'DEPARTAMENTAL', 'NO CITREP', 'PARTIDO ÑANDÚ', '000', 'PARTIDO ÑANDÚ', 40),
+            $fila('CAMARA', 'DEPARTAMENTAL', 'NO CITREP', 'PARTIDO ÑANDÚ', '101', 'JOSÉ MUÑOZ', 10),
+            $fila('SENADO', 'NACIONAL', 'NO CITREP', 'PARTIDO ÑANDÚ', '000', 'PARTIDO ÑANDÚ', 7),
+            $fila('CAMARA', 'INDIGENAS', 'NO CITREP', 'MAIS', '000', 'MAIS', 3),
+            $fila('CAMARA', 'AFRO-DESCENDIENTES', 'NO CITREP', 'AFRO', '000', 'AFRO', 3),
+            $fila('CAMARA', 'CITREP', 'CITREP - 07', 'PAZ', '000', 'PAZ', 3),
+        ]);
+        $ruta = tempnam(sys_get_temp_dir(), 'c22').'.csv';
+        file_put_contents($ruta, "\xFF\xFE".mb_convert_encoding($texto, 'UTF-16LE', 'UTF-8'));
+
+        $r = app(ImportadorHistorico::class)->importar($ruta, 2022, null, 'MMV_2022_52_META.csv');
+
+        $this->assertSame([], $r['errores']);
+        $this->assertSame(3, $r['insertadas']);
+        $this->assertSame(3, $r['omitidas']);
+
+        $stats = app(HistoricoElectoralStats::class);
+        $camara = $stats->contienda(2022, 'camara', $this->meta->id);
+        $this->assertSame([['PARTIDO ÑANDÚ', 50]], array_map(fn ($c) => [$c['partido'], $c['votos']], $camara));
+        $this->assertSame('JOSÉ MUÑOZ', DB::table('historico_electoral')->where('cargo', 'camara')->whereNotNull('candidato')->value('candidato'));
+        $this->assertSame(7, $stats->contienda(2022, 'senado', null)[0]['votos']);
+    }
 }

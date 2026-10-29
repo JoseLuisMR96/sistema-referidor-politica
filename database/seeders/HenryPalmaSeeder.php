@@ -17,8 +17,9 @@ use Illuminate\Support\Facades\Storage;
  *   php artisan db:seed --class=HenryPalmaSeeder
  *
  * Imágenes (opcionales): si existen database/seeders/marca/henry-palma/logo.*
- * (el tigre) o foto.* (png, jpg o webp), se copian al disco public. Si no,
- * se suben después desde Candidatos > Editar.
+ * (el tigre), foto.* o fondo.* (la bandera o el tigre con la bandera; png,
+ * jpg o webp), se copian al disco public. Si no, se suben después desde
+ * Candidatos > Editar.
  *
  * Colores: tema completo en azul #00062A con letras blancas (#FFFFFF, salen
  * solas por contraste) y amarillo #FFD500 como acento.
@@ -56,7 +57,7 @@ class HenryPalmaSeeder extends Seeder
         $tenant->slug = self::SLUG;
         $tenant->save();
 
-        foreach (['logo', 'foto'] as $tipo) {
+        foreach (['logo', 'foto', 'fondo'] as $tipo) {
             $this->copiarImagen($tenant, $tipo);
         }
 

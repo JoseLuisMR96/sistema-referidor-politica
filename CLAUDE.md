@@ -81,7 +81,7 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
   - **municipal** (Alcaldía, Concejo, JAL): departamento y municipio.
 
   `DashboardStats::circunscripcion()` cuenta los registros por **municipio de votación (FK)** dentro de esa zona: los que pueden votar por el candidato, los que votan fuera y los que no tienen municipio. El formulario público arranca en el lugar del candidato, y el mapa del dashboard en su departamento.
-- **Identidad visual (marca):** el tenant tiene `partido`, `slogan`, `color_primario`, `color_secundario`, `logo_path` y `foto_path`. Las imágenes van en el disco `public` y se sirven por la ruta `marca.archivo` (`/marca/{slug}/{logo|foto}`), así no depende de `storage:link`. No se aceptan SVG.
+- **Identidad visual (marca):** el tenant tiene `partido`, `slogan`, `color_primario`, `color_secundario`, `logo_path`, `foto_path` y `fondo_path` (imagen decorativa fija detrás del contenido, con opacidad baja). Las URLs de `marca.archivo` son **relativas**: así funcionan en cualquier dominio, aunque `APP_URL` sea otro. Las imágenes van en el disco `public` y se sirven por la ruta `marca.archivo` (`/marca/{slug}/{logo|foto}`), así no depende de `storage:link`. No se aceptan SVG.
   - **Cómo cambia el color de toda la app:** las vistas usan clases `indigo-*` como color de marca. En [tailwind.config.js](tailwind.config.js), `indigo` lee variables CSS `--marca-50…950`, cuyos valores por defecto (el índigo original) están en [app.css](resources/css/app.css). El componente `<x-marca :tenant>` imprime en el `<head>` la paleta del candidato generada por [Marca](app/Support/Marca.php): el color elegido queda en el tono 600 y los demás tonos salen de mezclarlo con blanco o negro.
   - **Color secundario:** clases `secundario` y `secundario-texto`, que también son variables.
   - **Tema completo** (`tenants.tema_completo`): el fondo, las tarjetas y los textos de toda la app toman el color primario.
@@ -150,6 +150,10 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
   - **Codificación:** viene en UTF-8, en Latin-1 o con la Ñ codificada dos veces, y `texto()` lo normaliza. Si el nombre del partido viene dañado, se toma de su fila de voto por la lista.
   - **Qué lee:** `x_resum_municipio_XX`, `x_resum_comuna_XX` (JAL) y `elegidos`. Nunca `candidat`, que trae cédulas.
   - **Cómo cruza los lugares:** los códigos de la Registraduría no son DANE, así que el cruce es por nombre, con los alias de `ImportadorHistorico::ALIAS_DANE` y por prefijo único. Los corregimientos departamentales del Vaupés no son municipios y quedan fuera.
+  - **Congreso 2022:** 34 CSV "mesa a mesa" en **UTF-16**, uno por departamento más consulados.
+    - El importador detecta la marca de orden de bytes (BOM) y convierte al vuelo con `convert.iconv`.
+    - Solo entran Senado nacional y Cámara departamental: el filtro de circunscripción descarta indígenas, afro y CITREP.
+    - Para cargar varios archivos, usa `--sin-precalcular` y al final corre `historico:precalcular`.
   - **2018 en adelante:** CSV "mesa a mesa" (`Resultados.csv`, una fila por puesto). Se carga con `php artisan historico:importar-archivo Resultados.csv --anio=2018 --vuelta=1` ([comando](app/Console/Commands/ImportarHistoricoArchivoCommand.php)) o desde la pantalla.
     - El importador suma los puestos por municipio y deja fuera consulados y circunscripciones especiales.
     - "Código Municipio" de la Registraduría **no** es DANE: no lo mapees a `codigo_dane`.
