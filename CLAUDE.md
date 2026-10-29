@@ -59,6 +59,10 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
   - **Eliminar un candidato** ([EliminarTenant](app/Services/EliminarTenant.php)) borra todos sus datos en orden de FK, dentro de una transacción, y exige escribir su nombre para confirmar.
     - **Se niega si tiene usuarios restringidos:** `users.tenant_id` es SET NULL, así que esos usuarios quedarían **globales**.
     - Si agregas una tabla con `tenant_id`, súmala a `EliminarTenant::TABLAS` en el orden correcto.
+  - **Demo para presentar:** [DemoCandidatoSeeder](database/seeders/DemoCandidatoSeeder.php) crea para Henry 12 referidores, 640 registros en el Meta y 15 pregoneros con referidos.
+    - Todo ficticio y marcado (`origen = demo`, códigos `DEMO…`, cédulas `99…`), sin teléfonos. Se repite sin duplicar.
+    - No usa Faker, que en producción no está.
+    - Se borra con `php artisan demo:borrar henry-palma`.
   - **Candidatos con seeder:** [HenryPalmaSeeder](database/seeders/HenryPalmaSeeder.php) (Gobernación del Meta 2027). No está en `DatabaseSeeder`; córrelo con `--class`. Sus imágenes opcionales van en `database/seeders/marca/henry-palma/`.
 - **Pantallas que crean datos:** usan el trait [RequiereTenant](app/Livewire/Concerns/RequiereTenant.php) (`exigirTenant()` en las acciones que guardan) y ponen `<x-tenant-requerido accion="…" />` al inicio de la vista.
   - En modo "Todos" la pantalla **abre igual** y muestra un selector para elegir el candidato ahí mismo; guardar devuelve el error `tenant`.
@@ -80,6 +84,10 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
 - **Identidad visual (marca):** el tenant tiene `partido`, `slogan`, `color_primario`, `color_secundario`, `logo_path` y `foto_path`. Las imágenes van en el disco `public` y se sirven por la ruta `marca.archivo` (`/marca/{slug}/{logo|foto}`), así no depende de `storage:link`. No se aceptan SVG.
   - **Cómo cambia el color de toda la app:** las vistas usan clases `indigo-*` como color de marca. En [tailwind.config.js](tailwind.config.js), `indigo` lee variables CSS `--marca-50…950`, cuyos valores por defecto (el índigo original) están en [app.css](resources/css/app.css). El componente `<x-marca :tenant>` imprime en el `<head>` la paleta del candidato generada por [Marca](app/Support/Marca.php): el color elegido queda en el tono 600 y los demás tonos salen de mezclarlo con blanco o negro.
   - **Color secundario:** clases `secundario` y `secundario-texto`, que también son variables.
+  - **Tema completo** (`tenants.tema_completo`): el fondo, las tarjetas y los textos de toda la app toman el color primario.
+    - `Marca::tema()` deriva las variables `--tema-*`. El texto sale blanco o casi negro según el contraste, y el acento es el secundario o, si no hay, el color del texto.
+    - El layout pone `class="tema-marca"` en `<html>`, y `app.css` reescribe con esa clase los neutros (`bg-white`, `text-slate-*`, `border-gray-*`…). Si una vista usa una clase neutra nueva que no cambia, agrégala en `app.css`.
+    - Chart.js: no cambies `Chart.defaults.borderColor`/`backgroundColor`, porque apaga la paleta automática.
   - **Para que algo nuevo tome el color del candidato,** usa `indigo-*` o `secundario`, nunca un hex fijo. Después de tocar `tailwind.config.js` o clases nuevas, corre `npm run build` (o `composer dev`).
   - **Dónde se aplica:**
     - **App:** el layout toma el tenant del contexto. En "Todos" se ve el diseño por defecto.

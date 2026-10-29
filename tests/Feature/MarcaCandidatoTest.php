@@ -182,4 +182,31 @@ class MarcaCandidatoTest extends TestCase
         $this->get("/marca/{$t->slug}/../.env")->assertNotFound();
         $this->get('/marca/no-existe/logo')->assertNotFound();
     }
+
+    public function test_tema_completo_pinta_fondo_textos_y_acento(): void
+    {
+        $tenant = new \App\Models\Tenant(['color_primario' => '#00062A', 'color_secundario' => '#FFD500', 'tema_completo' => true]);
+        $tema = \App\Support\Marca::tema($tenant);
+
+        $this->assertSame('#00062a', $tema['fondo']);
+        $this->assertSame('#ffffff', $tema['texto']);
+        $this->assertSame('#ffd500', $tema['acento']);
+        // Todos los textos se leen (WCAG 4.5:1) sobre las superficies
+        $this->assertGreaterThanOrEqual(4.5, \App\Support\Marca::contraste($tema['texto-3'], $tema['superficie-2']));
+        $this->assertGreaterThanOrEqual(4.5, \App\Support\Marca::contraste($tema['acento-texto'], $tema['acento']));
+        $this->assertStringContainsString('--tema-fondo: 0 6 42;', \App\Support\Marca::css($tenant));
+
+        // Sin la opción, solo los colores de marca de siempre
+        $tenant->tema_completo = false;
+        $this->assertSame([], \App\Support\Marca::tema($tenant));
+        $this->assertStringNotContainsString('--tema-', \App\Support\Marca::css($tenant));
+    }
+
+    public function test_tema_con_color_claro_usa_letras_oscuras(): void
+    {
+        $tema = \App\Support\Marca::tema(new \App\Models\Tenant(['color_primario' => '#FFD500', 'tema_completo' => true]));
+
+        $this->assertSame('#111827', $tema['texto']);
+        $this->assertGreaterThanOrEqual(4.5, \App\Support\Marca::contraste($tema['texto-2'], $tema['superficie']));
+    }
 }

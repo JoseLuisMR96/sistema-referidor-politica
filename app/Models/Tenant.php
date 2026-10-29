@@ -22,6 +22,7 @@ class Tenant extends Model
         'slogan',
         'color_primario',
         'color_secundario',
+        'tema_completo',
         'logo_path',
         'foto_path',
         'cargo',
@@ -34,6 +35,7 @@ class Tenant extends Model
 
     protected $casts = [
         'activo' => 'boolean',
+        'tema_completo' => 'boolean',
         'cargo' => CargoEnum::class,
     ];
 
