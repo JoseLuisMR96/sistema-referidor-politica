@@ -126,6 +126,18 @@ class Tenant extends Model
         return $this->foto_path ? route('marca.archivo', [$this->slug, 'foto', 'v' => $this->updated_at?->timestamp], false) : null;
     }
 
+    /**
+     * Proporción "ancho / alto" de la imagen de fondo (para CSS aspect-ratio),
+     * así se ve completa de alto a cualquier ancho de pantalla.
+     */
+    public function fondoProporcion(): string
+    {
+        $ruta = $this->fondo_path ? \Illuminate\Support\Facades\Storage::disk('public')->path($this->fondo_path) : null;
+        $medidas = $ruta && is_file($ruta) ? @getimagesize($ruta) : false;
+
+        return $medidas ? "{$medidas[0]} / {$medidas[1]}" : '3 / 1';
+    }
+
     public function fondoUrl(): ?string
     {
         return $this->fondo_path ? route('marca.archivo', [$this->slug, 'fondo', 'v' => $this->updated_at?->timestamp], false) : null;
