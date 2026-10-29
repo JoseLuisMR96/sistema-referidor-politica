@@ -1,0 +1,23 @@
+# Hostinger despliega el repositorio entero dentro de public_html.
+# Este archivo hace que solo se sirva la carpeta public/ y bloquea el resto
+# (.env, .git, código, vendor, storage...). No lo borres.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Archivos y carpetas ocultos (.env, .git, .htaccess...), salvo .well-known (certificados SSL)
+    RewriteRule (^|/)\.(?!well-known(/|$)) - [F,L]
+
+    # Código, dependencias y archivos internos de la raíz
+    RewriteRule ^(app|bootstrap|config|database|lang|resources|routes|storage|tests|vendor|node_modules)(/|$) - [F,L]
+    RewriteRule ^(artisan|composer\.(json|lock)|package(-lock)?\.json|phpunit\.xml|[^/]+\.config\.js|[^/]+\.md|deploy\.sh)$ - [F,L]
+
+    # Todo lo demás va a public/ (ahí está el index.php de Laravel)
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# Si mod_rewrite no estuviera activo, al menos no exponer el .env
+<Files ".env">
+    Require all denied
+</Files>
