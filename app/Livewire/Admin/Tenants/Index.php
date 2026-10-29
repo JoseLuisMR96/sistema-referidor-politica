@@ -6,8 +6,9 @@ use App\Enums\CargoEnum;
 use App\Models\Departamento;
 use App\Models\Municipio;
 use App\Models\Tenant;
-use Illuminate\Support\Facades\DB;
+use App\Services\EliminarTenant;
 use App\Support\Marca;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -221,6 +222,55 @@ class Index extends Component
         }
     }
 
+    // Borrado: primero se muestra qué se pierde y se pide escribir el nombre
+    public ?int $eliminandoId = null;
+
+    public string $confirmacionNombre = '';
+
+    public function pedirEliminar(int $id): void
+    {
+        $this->autorizar();
+        Tenant::findOrFail($id);
+
+        $this->eliminandoId = $id;
+        $this->confirmacionNombre = '';
+        $this->resetErrorBag();
+    }
+
+    public function cancelarEliminar(): void
+    {
+        $this->reset('eliminandoId', 'confirmacionNombre');
+    }
+
+    public function eliminar(EliminarTenant $servicio): void
+    {
+        $this->autorizar();
+        $tenant = Tenant::findOrFail($this->eliminandoId);
+
+        if (trim($this->confirmacionNombre) !== $tenant->nombre) {
+            $this->addError('confirmacionNombre', 'Escribe el nombre exacto del candidato para confirmar.');
+
+            return;
+        }
+
+        try {
+            $servicio->eliminar($tenant);
+        } catch (\RuntimeException $e) {
+            $this->addError('confirmacionNombre', $e->getMessage());
+
+            return;
+        }
+
+        if ($this->editingId === $tenant->id) {
+            $this->cancelar();
+        }
+        $this->cancelarEliminar();
+
+        session()->flash('success', "Candidato \"{$tenant->nombre}\" eliminado con todos sus datos.");
+        // Recarga completa: el menú lateral también lista los candidatos
+        $this->redirectRoute('tenants.index');
+    }
+
     public function quitarArchivo(string $tipo): void
     {
         $this->autorizar();
@@ -256,6 +306,9 @@ class Index extends Component
         return view('livewire.admin.tenants.index', [
             'contrastePrimario' => $contrastePrimario,
             'tenantEditado' => $this->editingId ? Tenant::find($this->editingId) : null,
+            'tenantEliminando' => $eliminando = ($this->eliminandoId ? Tenant::find($this->eliminandoId) : null),
+            'resumenEliminar' => $eliminando ? app(EliminarTenant::class)->resumen($eliminando) : [],
+            'usuariosEliminar' => $eliminando ? app(EliminarTenant::class)->usuarios($eliminando) : 0,
             'tenants' => Tenant::query()
                 ->with(['departamento:id,nombre', 'municipio:id,nombre'])
                 ->withCount(['users'])

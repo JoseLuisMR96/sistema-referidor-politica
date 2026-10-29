@@ -221,6 +221,9 @@ class ImportadorHistorico
         $resumen['insertadas'] += count($nuevas);
         arsort($resumen['sin_lugar']);
 
+        // Cambiaron los datos: la caché del módulo se renueva
+        HistoricoElectoralStats::invalidarCache();
+
         return $resumen;
     }
 

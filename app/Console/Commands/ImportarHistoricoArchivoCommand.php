@@ -57,6 +57,10 @@ class ImportarHistoricoArchivoCommand extends Command
             $this->error($e);
         }
 
+        if ($r['insertadas']) {
+            $this->call('historico:precalcular');
+        }
+
         return $r['errores'] && ! $r['insertadas'] ? self::FAILURE : self::SUCCESS;
     }
 }

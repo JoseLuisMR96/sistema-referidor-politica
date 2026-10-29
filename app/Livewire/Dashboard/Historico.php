@@ -181,7 +181,7 @@ class Historico extends Component
         }
 
         $mapa = $departamento ? [
-            'geo' => asset('data/deptos/'.rawurlencode($departamento->nombre).'.geojson'),
+            'geo' => asset('data/deptos-web/'.rawurlencode($departamento->nombre).'.geojson'),
             'municipios' => collect($ganadores)
                 ->filter(fn ($g) => $g['codigo_dane'])
                 ->mapWithKeys(fn ($g) => [$g['codigo_dane'] => [

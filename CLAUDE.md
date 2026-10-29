@@ -56,6 +56,10 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
   - **Nulo = global:** elige el tenant en el selector del menú; "Todos los tenants" es solo para consultar.
   - **Con valor = restringido:** `TenantContext::id()` siempre devuelve su tenant, sin importar la sesión.
   - Solo los globales con `tenants.gestionar` administran tenants en `/admin/tenants`.
+  - **Eliminar un candidato** ([EliminarTenant](app/Services/EliminarTenant.php)) borra todos sus datos en orden de FK, dentro de una transacción, y exige escribir su nombre para confirmar.
+    - **Se niega si tiene usuarios restringidos:** `users.tenant_id` es SET NULL, así que esos usuarios quedarían **globales**.
+    - Si agregas una tabla con `tenant_id`, súmala a `EliminarTenant::TABLAS` en el orden correcto.
+  - **Candidatos con seeder:** [HenryPalmaSeeder](database/seeders/HenryPalmaSeeder.php) (Gobernación del Meta 2027). No está en `DatabaseSeeder`; córrelo con `--class`. Sus imágenes opcionales van en `database/seeders/marca/henry-palma/`.
 - **Pantallas que crean datos:** usan el trait [RequiereTenant](app/Livewire/Concerns/RequiereTenant.php) (`exigirTenant()` en las acciones que guardan) y ponen `<x-tenant-requerido accion="…" />` al inicio de la vista.
   - En modo "Todos" la pantalla **abre igual** y muestra un selector para elegir el candidato ahí mismo; guardar devuelve el error `tenant`.
   - **No redirijas desde `mount()`:** se hizo así al principio y parecía que el menú no llevaba a la pantalla.
@@ -145,6 +149,11 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
     - El importador lee **en streaming**. En `guardar()` normaliza nombres y lugares una sola vez (memoria por texto) y suma en memoria por lugar. Para archivos así usa el comando con `-d memory_limit=4G`, no la pantalla.
     - Convenciones 2019: voto por la lista = código de candidato `00000`; blanco, nulos y no marcados llegan con partido `N/A` y el nombre en el candidato; la comuna llega como "01COMUNA 1 POPULAR". 2019 no trae elegidos ni curules. Algunos municipios vienen sin la Ñ ("PUERTO CARREO", "PEOL"): el catálogo de búsqueda incluye también los nombres sin Ñ (`sinEnie()`).
     - Congreso 2018 no tiene descarga en el Observatorio.
+- **Velocidad:**
+  - **Caché permanente:** `HistoricoElectoralStats` guarda cada consulta en caché sin vencimiento. La clave lleva una versión (`historico:version`) que `ImportadorHistorico::guardar()` sube al terminar (`invalidarCache()`).
+  - **Precálculo:** los comandos de importación corren al final `historico:precalcular`, que llena todas las vistas (país y cada departamento) en unos 25 s. Si importas desde la pantalla, la caché se llena sola con el uso. Si agregas un método público de consulta, envuélvelo con `recordar()`.
+  - **Índice:** `historico_filtros` = (anio, cargo, vuelta, departamento_id, municipio_id, partido).
+  - **Mapas web:** se sirven desde `public/data/deptos-web/`, 7 MB en total frente a 286 MB, simplificados a unos 50 m con [database/data/simplificar_geojson.py](database/data/simplificar_geojson.py). Los originales de `public/data/deptos/` se quedan como fuente. Los usan el Histórico y el dashboard de registros.
 - **Vuelta:** columna `historico_electoral.vuelta` (1 por defecto). `HistoricoElectoralStats::$vuelta` filtra todas las consultas a través de `tabla()`.
 - **Corporaciones (listas):** asamblea, concejo, JAL y Congreso se agrupan por **partido** (lista + voto preferente). Las curules son los elegidos del partido.
 

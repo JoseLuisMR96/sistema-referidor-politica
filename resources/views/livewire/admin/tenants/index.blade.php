@@ -256,11 +256,67 @@
                                     @endif
                                 </td>
                                 <td class="py-3 px-4 text-right">
-                                    <button type="button" wire:click="editar({{ $t->id }})" class="px-3 py-1.5 rounded-md border text-xs font-semibold hover:bg-gray-50">
-                                        Editar
-                                    </button>
+                                    <div class="flex justify-end gap-2">
+                                        <button type="button" wire:click="editar({{ $t->id }})" class="px-3 py-1.5 rounded-md border text-xs font-semibold hover:bg-gray-50">
+                                            Editar
+                                        </button>
+                                        <button type="button" wire:click="pedirEliminar({{ $t->id }})" class="px-3 py-1.5 rounded-md border border-rose-200 text-rose-700 text-xs font-semibold hover:bg-rose-50">
+                                            Eliminar
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
+
+                            @if ($tenantEliminando?->id === $t->id)
+                                <tr wire:key="eliminar-{{ $t->id }}" class="bg-rose-50">
+                                    <td colspan="7" class="py-4 px-4">
+                                        <div class="text-sm font-bold text-rose-900">¿Eliminar a {{ $t->nombre }}?</div>
+
+                                        @if ($usuariosEliminar)
+                                            <div class="mt-1 text-sm text-rose-800">
+                                                No se puede: tiene {{ $usuariosEliminar }} usuario(s) asignados.
+                                                Muévelos a otro candidato o elimínalos en <a href="{{ route('users.index') }}" class="underline font-semibold">Usuarios</a> primero
+                                                (si no, quedarían como usuarios globales y verían a todos los candidatos).
+                                            </div>
+                                            <div class="mt-3">
+                                                <button type="button" wire:click="cancelarEliminar" class="px-3 py-1.5 rounded-md border bg-white text-xs font-semibold">Cerrar</button>
+                                            </div>
+                                        @else
+                                            <div class="mt-1 text-sm text-rose-800">
+                                                Se borra para siempre, junto con todos sus datos. No se puede deshacer.
+                                            </div>
+                                            @if ($resumenEliminar)
+                                                <ul class="mt-2 flex flex-wrap gap-2 text-xs">
+                                                    @foreach ($resumenEliminar as $etiqueta => $total)
+                                                        <li class="rounded bg-white px-2 py-1 border border-rose-200 text-rose-900">
+                                                            {{ $etiqueta }}: <span class="font-bold">{{ number_format($total, 0, ',', '.') }}</span>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            @else
+                                                <div class="mt-1 text-xs text-rose-700">No tiene datos cargados.</div>
+                                            @endif
+
+                                            <label class="mt-3 block text-xs font-semibold text-rose-900">
+                                                Para confirmar, escribe el nombre: <span class="font-mono">{{ $t->nombre }}</span>
+                                                <input type="text" wire:model="confirmacionNombre" autocomplete="off"
+                                                    class="mt-1 block w-full max-w-sm rounded-md border-rose-300 text-sm">
+                                            </label>
+                                            @error('confirmacionNombre')
+                                                <div class="mt-1 text-xs text-rose-700 font-semibold">{{ $message }}</div>
+                                            @enderror
+
+                                            <div class="mt-3 flex gap-2">
+                                                <button type="button" wire:click="cancelarEliminar" class="px-3 py-1.5 rounded-md border bg-white text-xs font-semibold">Cancelar</button>
+                                                <button type="button" wire:click="eliminar" wire:loading.attr="disabled" wire:target="eliminar"
+                                                    class="px-3 py-1.5 rounded-md bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-50">
+                                                    Eliminar definitivamente
+                                                </button>
+                                            </div>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endif
                         @empty
                             <tr>
                                 <td colspan="7" class="py-6 px-4 text-center text-gray-500">Todavía no hay tenants.</td>

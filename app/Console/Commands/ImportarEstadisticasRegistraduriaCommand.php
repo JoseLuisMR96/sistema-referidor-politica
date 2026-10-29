@@ -114,6 +114,10 @@ class ImportarEstadisticasRegistraduriaCommand extends Command
             $this->error($e);
         }
 
+        if ($total['insertadas']) {
+            $this->call('historico:precalcular');
+        }
+
         return self::SUCCESS;
     }
 

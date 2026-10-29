@@ -6,6 +6,7 @@ use App\Enums\CargoEnum;
 use App\Models\PublicRegistration;
 use App\Support\TenantContext;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -29,10 +30,65 @@ class HistoricoElectoralStats
     }
 
     /** Vueltas con datos (para el filtro de presidencia). */
-    public function vueltas(int $anio, string $cargo): array
+    protected function calcularVueltas(int $anio, string $cargo): array
     {
         return DB::table(self::TABLA)->where('anio', $anio)->where('cargo', $cargo)
             ->distinct()->orderBy('vuelta')->pluck('vuelta')->map(fn ($v) => (int) $v)->all();
+    }
+
+    /*
+     * Caché: los resultados históricos no cambian, así que cada consulta se
+     * calcula una vez. La clave lleva una "versión" que el importador sube al
+     * terminar (ver ImportadorHistorico::guardar), y con eso todo se renueva.
+     */
+    public const CACHE_VERSION = 'historico:version';
+
+    public static function invalidarCache(): void
+    {
+        Cache::forever(self::CACHE_VERSION, (int) Cache::get(self::CACHE_VERSION, 1) + 1);
+    }
+
+    private function recordar(string $metodo, array $args, \Closure $calcular): mixed
+    {
+        $version = (int) Cache::get(self::CACHE_VERSION, 1);
+        $clave = "historico:{$version}:{$metodo}:{$this->vuelta}:".md5(serialize($args));
+
+        return Cache::rememberForever($clave, $calcular);
+    }
+
+    public function vueltas(int $anio, string $cargo): array
+    {
+        return $this->recordar('vueltas', [$anio, $cargo], fn () => $this->calcularVueltas($anio, $cargo));
+    }
+
+    public function anios(): array
+    {
+        return $this->recordar('anios', [], fn () => $this->calcularAnios());
+    }
+
+    public function cargos(?int $anio): array
+    {
+        return $this->recordar('cargos', [$anio], fn () => $this->calcularCargos($anio));
+    }
+
+    public function comunas(int $anio, string $cargo, int $municipioId): array
+    {
+        return $this->recordar('comunas', [$anio, $cargo, $municipioId], fn () => $this->calcularComunas($anio, $cargo, $municipioId));
+    }
+
+    public function contienda(int $anio, string $cargo, ?int $departamentoId, ?int $municipioId = null, ?string $comuna = null): array
+    {
+        return $this->recordar('contienda', [$anio, $cargo, $departamentoId, $municipioId, $comuna], fn () => $this->calcularContienda($anio, $cargo, $departamentoId, $municipioId, $comuna));
+    }
+
+    public function ganadoresPorMunicipio(int $anio, string $cargo, ?int $departamentoId = null): array
+    {
+        return $this->recordar('ganadoresPorMunicipio', [$anio, $cargo, $departamentoId], fn () => $this->calcularGanadoresPorMunicipio($anio, $cargo, $departamentoId));
+    }
+
+    public function ganadoresPorDepartamento(int $anio, string $cargo): array
+    {
+        return $this->recordar('ganadoresPorDepartamento', [$anio, $cargo], fn () => $this->calcularGanadoresPorDepartamento($anio, $cargo));
     }
 
     /** Asamblea, concejo, JAL y Congreso se votan por listas: se agrupa por partido. */
@@ -42,19 +98,19 @@ class HistoricoElectoralStats
     }
 
     /** Años con datos, del más reciente al más viejo. */
-    public function anios(): array
+    protected function calcularAnios(): array
     {
-        return $this->tabla()->distinct()->orderByDesc('anio')->pluck('anio')->map(fn ($a) => (int) $a)->all();
+        return DB::table(self::TABLA)->distinct()->orderByDesc('anio')->pluck('anio')->map(fn ($a) => (int) $a)->all();
     }
 
     /** Cargos con datos en ese año, en el orden de CargoEnum. */
-    public function cargos(?int $anio): array
+    protected function calcularCargos(?int $anio): array
     {
         if (! $anio) {
             return [];
         }
 
-        $hay = $this->tabla()->where('anio', $anio)->distinct()->pluck('cargo')->all();
+        $hay = DB::table(self::TABLA)->where('anio', $anio)->distinct()->pluck('cargo')->all();
 
         return collect(CargoEnum::cases())
             ->filter(fn (CargoEnum $c) => in_array($c->value, $hay, true))
@@ -63,7 +119,7 @@ class HistoricoElectoralStats
     }
 
     /** Comunas con datos (JAL) en un municipio. */
-    public function comunas(int $anio, string $cargo, int $municipioId): array
+    protected function calcularComunas(int $anio, string $cargo, int $municipioId): array
     {
         return $this->tabla()
             ->where(compact('anio', 'cargo'))
@@ -77,7 +133,7 @@ class HistoricoElectoralStats
      * quedó elegido y curules. Sin municipio suma todo el departamento, y sin
      * departamento todo el país (presidencia y Senado).
      */
-    public function contienda(int $anio, string $cargo, ?int $departamentoId, ?int $municipioId = null, ?string $comuna = null): array
+    protected function calcularContienda(int $anio, string $cargo, ?int $departamentoId, ?int $municipioId = null, ?string $comuna = null): array
     {
         $base = fn () => $this->tabla()
             ->where('anio', $anio)
@@ -156,7 +212,7 @@ class HistoricoElectoralStats
      *
      * @return array<int, array> por municipio_id
      */
-    public function ganadoresPorMunicipio(int $anio, string $cargo, ?int $departamentoId = null): array
+    protected function calcularGanadoresPorMunicipio(int $anio, string $cargo, ?int $departamentoId = null): array
     {
         $filas = $this->tabla('h')
             ->join('municipios as m', 'm.id', '=', 'h.municipio_id')
@@ -222,7 +278,7 @@ class HistoricoElectoralStats
      * Vista de todo el país para cargos departamentales: ganador de cada
      * departamento (suma de sus municipios).
      */
-    public function ganadoresPorDepartamento(int $anio, string $cargo): array
+    protected function calcularGanadoresPorDepartamento(int $anio, string $cargo): array
     {
         $filas = $this->tabla('h')
             ->join('departamentos as d', 'd.id', '=', 'h.departamento_id')

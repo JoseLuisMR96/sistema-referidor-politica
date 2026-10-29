@@ -488,7 +488,7 @@
         }
 
         function deptGeoUrl(deptName) {
-            return `{{ asset('data/deptos') }}/${encodeURIComponent(deptName)}.geojson`;
+            return `{{ asset('data/deptos-web') }}/${encodeURIComponent(deptName)}.geojson`;
         }
 
         function normalizeName(s) {
@@ -736,7 +736,7 @@
             const countsNormalized = window.__countsNormalized || {};
 
             fetch(deptGeoUrl(deptKey), {
-                    cache: 'no-store',
+                    cache: 'default',
                     signal: controller.signal
                 })
                 .then(async (r) => {
