@@ -14,7 +14,13 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
+# El Git de Hostinger también corre composer install (con dependencias de
+# desarrollo) al recibir un push. Si la caché de paquetes queda de esa
+# instalación, Laravel busca clases que --no-dev ya quitó y responde 500.
+rm -f bootstrap/cache/packages.php bootstrap/cache/services.php bootstrap/cache/config.php
+
 composer install --no-dev --optimize-autoloader --no-interaction
+php artisan package:discover
 
 php artisan migrate --force
 php artisan db:seed --class=RolesYPermisosSeeder --force

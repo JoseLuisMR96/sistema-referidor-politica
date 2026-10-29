@@ -55,7 +55,8 @@ html.tema-marca {
 .tema-marca .bg-white,
 .tema-marca .bg-white\/80,
 .tema-marca .bg-white\/90,
-.tema-marca .bg-white\/70 {
+.tema-marca .bg-white\/70,
+.tema-marca .odd\:bg-white:nth-child(odd) {
     background-color: rgb(var(--tema-superficie));
 }
 
@@ -71,8 +72,19 @@ html.tema-marca {
 .tema-marca .hover\:bg-slate-50:hover,
 .tema-marca .hover\:bg-slate-100:hover,
 .tema-marca .hover\:bg-indigo-50:hover,
-.tema-marca .focus\:bg-gray-100:focus {
+.tema-marca .focus\:bg-gray-100:focus,
+.tema-marca .focus\:bg-gray-50:focus,
+.tema-marca .even\:bg-slate-50\/30:nth-child(even),
+.tema-marca .hover\:bg-slate-50\/70:hover {
     background-color: rgb(var(--tema-superficie-2));
+}
+
+/* Grises medios: interruptores apagados, barras y puntos neutros, botones grises */
+.tema-marca .bg-gray-200,
+.tema-marca .bg-gray-300,
+.tema-marca .bg-slate-300,
+.tema-marca .hover\:bg-gray-300:hover {
+    background-color: rgb(var(--tema-borde));
 }
 
 /* Textos */
@@ -87,7 +99,10 @@ html.tema-marca {
 .tema-marca .hover\:text-gray-900:hover,
 .tema-marca .hover\:text-gray-700:hover,
 .tema-marca .hover\:text-slate-900:hover,
-.tema-marca .hover\:text-slate-700:hover {
+.tema-marca .hover\:text-slate-700:hover,
+.tema-marca .hover\:text-gray-800:hover,
+.tema-marca .focus\:text-gray-800:focus,
+.tema-marca .focus\:text-gray-700:focus {
     color: rgb(var(--tema-texto));
 }
 
@@ -95,7 +110,11 @@ html.tema-marca {
 .tema-marca .text-gray-500,
 .tema-marca .text-slate-600,
 .tema-marca .text-slate-500,
-.tema-marca .hover\:text-gray-500:hover {
+.tema-marca .hover\:text-gray-500:hover,
+.tema-marca .focus\:text-gray-500:focus,
+.tema-marca .text-black\/50,
+.tema-marca .text-black\/70,
+.tema-marca .hover\:text-black\/70:hover {
     color: rgb(var(--tema-texto-2));
 }
 
@@ -126,6 +145,7 @@ html.tema-marca {
 .tema-marca .border-indigo-100,
 .tema-marca .border-indigo-200,
 .tema-marca .hover\:border-gray-300:hover,
+.tema-marca .focus\:border-gray-300:focus,
 .tema-marca .divide-y > :not([hidden]) ~ :not([hidden]),
 .tema-marca .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
 .tema-marca .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
@@ -142,6 +162,9 @@ html.tema-marca {
 .tema-marca .bg-slate-900,
 .tema-marca .bg-gray-800,
 .tema-marca .bg-gray-900,
+.tema-marca .bg-gray-700,
+.tema-marca .bg-slate-950,
+.tema-marca .bg-zinc-900,
 .tema-marca .bg-black {
     background-color: rgb(var(--tema-acento));
     color: rgb(var(--tema-acento-texto));
@@ -152,7 +175,12 @@ html.tema-marca {
 .tema-marca .hover\:bg-slate-800:hover,
 .tema-marca .hover\:bg-slate-900:hover,
 .tema-marca .hover\:bg-gray-700:hover,
-.tema-marca .hover\:bg-black:hover {
+.tema-marca .hover\:bg-black:hover,
+.tema-marca .focus\:bg-slate-900:focus,
+.tema-marca .focus\:bg-gray-700:focus,
+.tema-marca .active\:bg-slate-900:active,
+.tema-marca .active\:bg-slate-950:active,
+.tema-marca .active\:bg-gray-900:active {
     background-color: rgb(var(--tema-acento) / 0.85);
     color: rgb(var(--tema-acento-texto));
 }
