@@ -236,7 +236,7 @@
         <div class="flex-1 flex flex-col min-w-0">
 
             {{-- TOPBAR --}}
-            <header class="h-16 bg-white border-b flex items-center px-6 gap-4">
+            <header class="relative z-20 h-16 bg-white border-b flex items-center px-6 gap-4">
                 <button type="button" @click="open=!open"
                     class="lg:hidden h-10 w-10 rounded-lg border hover:bg-gray-50">
                     ☰
@@ -287,7 +287,7 @@
 
             {{-- PAGE HEADER --}}
             @if ($header)
-                <div class="bg-white border-b px-6 py-4">
+                <div class="relative z-10 bg-white border-b px-6 py-4">
                     {{ $header }}
                 </div>
             @endif
@@ -295,8 +295,8 @@
             {{-- Imagen de fondo del candidato (bandera, tigre...): decorativa, detrás de las tarjetas --}}
             @if ($tenantActual?->fondoUrl())
                 <div aria-hidden="true"
-                    class="pointer-events-none fixed bottom-0 right-0 left-0 lg:left-72 z-0 opacity-[0.18] bg-no-repeat"
-                    style="aspect-ratio: {{ $tenantActual->fondoProporcion() }}; max-height: 100vh; background-image: url('{{ $tenantActual->fondoUrl() }}'); background-position: left bottom; background-size: cover;"></div>
+                    class="pointer-events-none fixed bottom-0 right-0 left-0 lg:left-72 bg-no-repeat"
+                    style="z-index: 0; opacity: 0.18; aspect-ratio: {{ $tenantActual->fondoProporcion() }}; max-height: 100vh; background-image: url('{{ $tenantActual->fondoUrl() }}'); background-position: left bottom; background-size: cover;"></div>
             @endif
 
             {{-- CONTENT --}}
