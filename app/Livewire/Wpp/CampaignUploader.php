@@ -2,13 +2,16 @@
 
 namespace App\Livewire\Wpp;
 
+use App\Livewire\Concerns\RequiereTenant;
 use App\Services\WppCampaignService;
+use App\Support\TenantContext;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class CampaignUploader extends Component
 {
+    use RequiereTenant;
     use WithFileUploads;
 
     public string $name = '';
@@ -23,6 +26,8 @@ class CampaignUploader extends Component
 
     public function mount(): void
     {
+        abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+
         $this->session = (string) config('services.wppconnect.default_session', 'cristian1');
     }
 
@@ -38,6 +43,12 @@ class CampaignUploader extends Component
 
     public function save(WppCampaignService $service): void
     {
+        abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
+
+        if (! $this->exigirTenant()) {
+            return;
+        }
+
         $this->validate([
             'name' => 'required|string|min:3|max:255',
             'session' => 'required|string|max:255',
@@ -60,6 +71,7 @@ class CampaignUploader extends Component
         }
 
         $campaign = $service->createCampaignAndQueue(
+            tenantId: app(TenantContext::class)->id(),
             contacts: $rows,
             name: $this->name,
             template: $this->message,

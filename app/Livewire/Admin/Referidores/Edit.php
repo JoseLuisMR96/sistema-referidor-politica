@@ -50,7 +50,9 @@ class Edit extends Component
                 'string',
                 'min:5',
                 'max:30',
-                Rule::unique('referidores_pregoneros', 'cedula')->ignore($this->referidor->id),
+                Rule::unique('referidores_pregoneros', 'cedula')
+                    ->where('tenant_id', $this->referidor->tenant_id)
+                    ->ignore($this->referidor->id),
             ],
             'celular' => ['nullable', 'string', 'max:20'], // ✅ ya estaba, ok
             'puesto_votacion' => ['required', 'string', 'min:3', 'max:255'],

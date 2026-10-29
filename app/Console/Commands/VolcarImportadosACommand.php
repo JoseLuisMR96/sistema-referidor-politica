@@ -6,6 +6,8 @@ use App\Models\ImportedPerson;
 use App\Models\Municipio;
 use App\Models\PublicRegistration;
 use App\Models\Referrer;
+use App\Models\Tenant;
+use App\Support\TenantContext;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -19,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 class VolcarImportadosACommand extends Command
 {
     protected $signature = 'referidos:volcar-importados
+        {--tenant= : Slug del tenant (candidato) del que se lee el padrón y al que van los registros}
         {--referrers= : Códigos de referidores separados por coma, se reparten al azar}
         {--municipio=685 : ID del municipio de residencia y votación}
         {--gender=NR : Valor para la columna gender (es NOT NULL y el origen no lo trae)}
@@ -32,6 +35,19 @@ class VolcarImportadosACommand extends Command
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
+
+        $tenant = Tenant::where('slug', (string) $this->option('tenant'))->first();
+
+        if (! $tenant) {
+            $this->error('Indica el tenant con --tenant=SLUG. Disponibles: '.Tenant::pluck('slug')->join(', '));
+
+            return self::FAILURE;
+        }
+
+        // Desde aquí el padrón, los referidores y las cédulas existentes se
+        // leen solo de este tenant (scope de BelongsToTenant).
+        app(TenantContext::class)->set($tenant->id);
+        $this->line("Tenant: <info>{$tenant->nombre}</info> ({$tenant->slug})");
 
         $municipio = Municipio::with('departamento')->find((int) $this->option('municipio'));
 
@@ -100,7 +116,9 @@ class VolcarImportadosACommand extends Command
                 $referidor = $referrers->random();
                 $porReferidor[$referidor->id]++;
 
+                // insert() masivo se salta el trait: el tenant va a mano
                 $lote[] = [
+                    'tenant_id' => $persona->tenant_id,
                     'full_name' => $persona->full_name,
                     'document_type' => $documentType,
                     'document_number' => $persona->document_number,

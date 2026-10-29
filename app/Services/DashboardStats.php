@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\CargoEnum;
+use App\Models\Municipio;
 use App\Models\PublicRegistration;
+use App\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -92,6 +95,89 @@ class DashboardStats
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Apoyo dentro de la circunscripción del candidato (dónde lo pueden votar).
+     *
+     * Usa el municipio de VOTACIÓN por FK. Un registro sin FK (texto legacy o
+     * vacío) cuenta como "sin dato": no se puede saber si suma o no.
+     * Las consultas pasan por el scope del tenant del contexto, así que hay
+     * que llamarlo con ese mismo tenant elegido.
+     *
+     * @return array{
+     *     ambito: string, titulo: string, total: int, dentro: int, fuera: int, sin_dato: int,
+     *     cobertura: array{con_registros: int, total: int}|null,
+     *     filas: list<array{label: string, value: int}>
+     * }|null  null si al tenant le falta cargo o lugar
+     */
+    public function circunscripcion(Tenant $tenant): ?array
+    {
+        $ambito = $tenant->ambito();
+
+        if (! $ambito) {
+            return null;
+        }
+
+        $total = PublicRegistration::count();
+        $sinDato = PublicRegistration::whereNull('voting_municipality_id')->count();
+
+        $porMunicipio = PublicRegistration::query()
+            ->whereNotNull('voting_municipality_id')
+            ->selectRaw('voting_municipality_id, COUNT(*) as total')
+            ->groupBy('voting_municipality_id')
+            ->pluck('total', 'voting_municipality_id')
+            ->map(fn ($n) => (int) $n);
+
+        $cobertura = null;
+        $filas = [];
+
+        if ($ambito === CargoEnum::AMBITO_MUNICIPAL) {
+            $dentro = (int) ($porMunicipio[$tenant->municipio_id] ?? 0);
+            $filas = [['label' => $tenant->municipio->nombre, 'value' => $dentro]];
+        } elseif ($ambito === CargoEnum::AMBITO_DEPARTAMENTAL) {
+            // Todos los municipios del departamento, también los que van en 0:
+            // ahí es donde falta trabajo.
+            $municipios = Municipio::where('departamento_id', $tenant->departamento_id)
+                ->orderBy('nombre')
+                ->get(['id', 'nombre']);
+
+            $filas = $municipios
+                ->map(fn ($m) => ['label' => $m->nombre, 'value' => (int) ($porMunicipio[$m->id] ?? 0)])
+                ->sortByDesc('value')
+                ->values()
+                ->all();
+
+            $dentro = array_sum(array_column($filas, 'value'));
+            $cobertura = [
+                'con_registros' => count(array_filter($filas, fn ($f) => $f['value'] > 0)),
+                'total' => $municipios->count(),
+            ];
+        } else {
+            // Nacional: todo registro con municipio cuenta; se agrupa por departamento
+            $filas = PublicRegistration::query()
+                ->join('municipios as m', 'm.id', '=', 'public_registrations.voting_municipality_id')
+                ->join('departamentos as d', 'd.id', '=', 'm.departamento_id')
+                ->selectRaw('TRIM(d.nombre) as departamento, COUNT(*) as total')
+                ->groupByRaw('TRIM(d.nombre)')
+                ->orderByDesc('total')
+                ->get()
+                ->map(fn ($r) => ['label' => $r->departamento, 'value' => (int) $r->total])
+                ->all();
+
+            $dentro = $total - $sinDato;
+        }
+
+        return [
+            'ambito' => $ambito,
+            'titulo' => $tenant->circunscripcionTexto(),
+            'total' => $total,
+            'dentro' => $dentro,
+            'fuera' => max(0, $total - $dentro - $sinDato),
+            'sin_dato' => $sinDato,
+            'cobertura' => $cobertura,
+            'filas' => $filas,
+        ];
     }
 
     /**

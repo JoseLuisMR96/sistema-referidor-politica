@@ -8,6 +8,7 @@ use App\Models\Municipio;
 use App\Models\Departamento;
 use Illuminate\Validation\Rule;
 use App\Models\PublicRegistration;
+use App\Models\Tenant;
 use Livewire\Attributes\Locked;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -51,10 +52,31 @@ class RegistrationForm extends Component
             ->get(['id', 'nombre'])
             ->toArray();
 
-        $meta = Departamento::query()->whereRaw('UPPER(nombre)=?', ['META'])->first();
-        if ($meta) {
-            $this->residence_department_id = (int) $meta->id;
-            $this->voting_department_id = (int) $meta->id;
+        $this->precargarLugar();
+    }
+
+    /**
+     * Arranca el formulario en el lugar donde se postula el candidato del
+     * referidor (su departamento y, si el cargo es municipal, su municipio).
+     * Sin candidato o sin lugar definido, META como antes.
+     */
+    private function precargarLugar(): void
+    {
+        $tenant = $this->referrer
+            ? Tenant::find($this->referrer->tenant_id)
+            : null;
+
+        $departamentoId = $tenant?->departamento_id
+            ?? Departamento::query()->whereRaw('UPPER(nombre)=?', ['META'])->value('id');
+
+        if ($departamentoId) {
+            $this->residence_department_id = (int) $departamentoId;
+            $this->voting_department_id = (int) $departamentoId;
+        }
+
+        if ($tenant?->municipio_id) {
+            $this->residence_municipality_id = (int) $tenant->municipio_id;
+            $this->voting_municipality_id = (int) $tenant->municipio_id;
         }
     }
 
@@ -67,7 +89,11 @@ class RegistrationForm extends Component
             return;
         }
 
+        // Sin el filtro de tenant: el código del link identifica al referidor
+        // (y con él al tenant), aunque quien abra el link tenga otro tenant
+        // elegido en su sesión.
         $this->referrer = Referrer::query()
+            ->withoutGlobalScope('tenant')
             ->where('code', $code)
             ->first();
     }
@@ -165,13 +191,16 @@ class RegistrationForm extends Component
         }
 
         if (! $this->referrer->is_active) {
-            $this->addError('ref', 'Este link/código fue desactivado. Por favor contáctate con MetaTank para solicitar uno nuevo.');
+            $this->addError('ref', 'Este link/código fue desactivado. Por favor contáctate con VoteuSoft para solicitar uno nuevo.');
             return;
         }
 
         $data = $this->validate();
 
+        // La misma cédula puede estar registrada con otro candidato (tenant)
         $exists = PublicRegistration::query()
+            ->withoutGlobalScope('tenant')
+            ->where('tenant_id', $this->referrer->tenant_id)
             ->where('document_type', $data['document_type'])
             ->where('document_number', $data['document_number'])
             ->exists();
@@ -182,6 +211,7 @@ class RegistrationForm extends Component
         }
 
         PublicRegistration::create([
+            'tenant_id' => $this->referrer->tenant_id,
             'full_name' => $data['full_name'],
             'document_type' => $data['document_type'],
             'document_number' => $data['document_number'],
@@ -220,18 +250,16 @@ class RegistrationForm extends Component
         $this->ref = $refCode;
         $this->loadReferrer();
 
-        // Si quieres volver a precargar META
-        $meta = Departamento::query()->whereRaw('UPPER(nombre)=?', ['META'])->first();
-        if ($meta) {
-            $this->residence_department_id = (int) $meta->id;
-            $this->voting_department_id = (int) $meta->id;
-        }
+        $this->precargarLugar();
     }
 
 
     public function render()
     {
-        return view('livewire.public.registration-form')
-            ->layout('components.layouts.guest');
+        // Identidad visual del candidato del link (colores, foto, logo, slogan)
+        $tenant = $this->referrer ? Tenant::find($this->referrer->tenant_id) : null;
+
+        return view('livewire.public.registration-form', ['tenantMarca' => $tenant])
+            ->layout('components.layouts.guest', ['tenantMarca' => $tenant]);
     }
 }

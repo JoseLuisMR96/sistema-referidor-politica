@@ -4,7 +4,7 @@ Guía para trabajar en este repositorio. El código, los nombres de dominio y lo
 
 ## Qué es esto
 
-Panel administrativo ("MetaTank Politic") para **recolección de datos de campaña política en Colombia**. Tres capas de funcionalidad:
+Panel administrativo ("VoteuSoft", antes "MetaTank Politic") para **recolección de datos de campaña política en Colombia**. Tres capas de funcionalidad:
 
 1. **Referidos** — personas se registran vía formularios públicos atribuidos a un referidor.
 2. **Dashboard de métricas** — KPIs, gráficas (Chart.js) y mapa de municipios (Leaflet + GeoJSON), con exportación a Excel/CSV.
@@ -26,6 +26,8 @@ La autorización de tratamiento de datos (Ley 1581 de 2012) se recoge **en papel
 
 ```bash
 composer dev        # serve + queue:listen + pail + vite en paralelo (lo normal para desarrollar)
+                    # En Windows pail no corre (no hay ext pcntl): avisa y sigue; logs en storage/logs/laravel.log
+php artisan schedule:work  # en local reemplaza al cron (sincronización diaria de redes); opcional
 composer test       # config:clear + artisan test
 php artisan migrate
 php artisan db:seed # roles/permisos + departamentos + municipios + admin desde SEED_ADMIN_*
@@ -39,6 +41,121 @@ Workers en producción (sin ellos NO se envían los mensajes de campaña; los ag
 php artisan queue:work --queue=wpp
 php artisan queue:work --queue=whatsapp
 ```
+
+## Multi-tenant (un tenant = un candidato)
+
+Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal"). Sus referidores, registros, pregoneros, padrón importado y envíos de WhatsApp llevan `tenant_id` y no se mezclan con los de otro tenant. Municipios y departamentos se comparten; `call_results` (Retell) sigue siendo global porque el webhook no dice de qué tenant es.
+
+- **Modelo de datos:** cada modelo con datos usa el trait [BelongsToTenant](app/Models/Concerns/BelongsToTenant.php), que hace dos cosas:
+  - **scope global:** filtra por el tenant del contexto, incluido el route model binding (un id de otro tenant da 404);
+  - **al crear:** pone el `tenant_id` del contexto, y si no hay contexto **lanza una excepción**.
+
+  Si agregas un modelo con datos de un candidato, ponle el trait y agrega `tenant_id` en una migración.
+- **Contexto:** [TenantContext](app/Support/TenantContext.php) es un singleton `scoped`. Lo llena el middleware [SetTenantContext](app/Http/Middleware/SetTenantContext.php), que va en el grupo `web`, así que también corre en `/livewire/update`.
+- **Usuarios:** `users.tenant_id` admite nulo.
+  - **Nulo = global:** elige el tenant en el selector del menú; "Todos los tenants" es solo para consultar.
+  - **Con valor = restringido:** `TenantContext::id()` siempre devuelve su tenant, sin importar la sesión.
+  - Solo los globales con `tenants.gestionar` administran tenants en `/admin/tenants`.
+  - **Eliminar un candidato** ([EliminarTenant](app/Services/EliminarTenant.php)) borra todos sus datos en orden de FK, dentro de una transacción, y exige escribir su nombre para confirmar.
+    - **Se niega si tiene usuarios restringidos:** `users.tenant_id` es SET NULL, así que esos usuarios quedarían **globales**.
+    - Si agregas una tabla con `tenant_id`, súmala a `EliminarTenant::TABLAS` en el orden correcto.
+  - **Candidatos con seeder:** [HenryPalmaSeeder](database/seeders/HenryPalmaSeeder.php) (Gobernación del Meta 2027). No está en `DatabaseSeeder`; córrelo con `--class`. Sus imágenes opcionales van en `database/seeders/marca/henry-palma/`.
+- **Pantallas que crean datos:** usan el trait [RequiereTenant](app/Livewire/Concerns/RequiereTenant.php) (`exigirTenant()` en las acciones que guardan) y ponen `<x-tenant-requerido accion="…" />` al inicio de la vista.
+  - En modo "Todos" la pantalla **abre igual** y muestra un selector para elegir el candidato ahí mismo; guardar devuelve el error `tenant`.
+  - **No redirijas desde `mount()`:** se hizo así al principio y parecía que el menú no llevaba a la pantalla.
+- **Sin usuario logueado** (formularios públicos, webhooks, API, colas, consola) no hay contexto y los modelos no filtran. Por eso el `tenant_id` se pone **explícito**, según el caso:
+  - **formularios públicos:** el del referidor del link, buscado con `withoutGlobalScope('tenant')`;
+  - **respuestas de botones:** el del mensaje original;
+  - **API de WPP:** el campo `tenant` (slug) de la petición;
+  - **`referidos:volcar-importados`:** `--tenant=slug`.
+- **Escrituras que se saltan el trait:** `DB::table()`, `Model::insert()` y `upsert()` no pasan por el scope ni por el `creating`. Ahí el `tenant_id` va a mano (ver el Outbox, el comando de volcado y `ImportedPeopleSeeder`). Igual con las reglas `exists:`/`unique:` de validación: usa `Rule::exists(...)->where('tenant_id', …)`.
+- **Únicos por tenant:** cédula en `public_registrations` y en `imported_people`, y teléfono en `wpp_contacts`. La misma persona puede registrarse con dos candidatos.
+- **Twilio:** el tenant puede tener su propio `twilio_messaging_service_sid` (su número); si no, usa el del `.env`. Las respuestas caen solas en el tenant correcto por el mensaje original.
+- **Circunscripción:** cada tenant tiene `cargo` ([CargoEnum](app/Enums/CargoEnum.php)), `departamento_id` y `municipio_id`. El ámbito del cargo decide qué es obligatorio:
+  - **nacional** (Senado, Presidencia): nada;
+  - **departamental** (Gobernación, Asamblea, Cámara): departamento;
+  - **municipal** (Alcaldía, Concejo, JAL): departamento y municipio.
+
+  `DashboardStats::circunscripcion()` cuenta los registros por **municipio de votación (FK)** dentro de esa zona: los que pueden votar por el candidato, los que votan fuera y los que no tienen municipio. El formulario público arranca en el lugar del candidato, y el mapa del dashboard en su departamento.
+- **Identidad visual (marca):** el tenant tiene `partido`, `slogan`, `color_primario`, `color_secundario`, `logo_path` y `foto_path`. Las imágenes van en el disco `public` y se sirven por la ruta `marca.archivo` (`/marca/{slug}/{logo|foto}`), así no depende de `storage:link`. No se aceptan SVG.
+  - **Cómo cambia el color de toda la app:** las vistas usan clases `indigo-*` como color de marca. En [tailwind.config.js](tailwind.config.js), `indigo` lee variables CSS `--marca-50…950`, cuyos valores por defecto (el índigo original) están en [app.css](resources/css/app.css). El componente `<x-marca :tenant>` imprime en el `<head>` la paleta del candidato generada por [Marca](app/Support/Marca.php): el color elegido queda en el tono 600 y los demás tonos salen de mezclarlo con blanco o negro.
+  - **Color secundario:** clases `secundario` y `secundario-texto`, que también son variables.
+  - **Para que algo nuevo tome el color del candidato,** usa `indigo-*` o `secundario`, nunca un hex fijo. Después de tocar `tailwind.config.js` o clases nuevas, corre `npm run build` (o `composer dev`).
+  - **Dónde se aplica:**
+    - **App:** el layout toma el tenant del contexto. En "Todos" se ve el diseño por defecto.
+    - **Formularios públicos:** el tenant del referidor del link llega al layout como `tenantMarca`, y la vista lo usa en `<x-cabecera-candidato>`.
+- **Tests:** usa `$this->usarTenant()` de [TestCase](tests/TestCase.php) antes de crear datos. Cada petición HTTP del test vuelve a fijar el contexto desde la sesión. El aislamiento se prueba en [TenantAislamientoTest](tests/Feature/TenantAislamientoTest.php).
+
+## Redes sociales (Meta)
+
+- **Credenciales globales:** viven en `integraciones` (proveedor `meta`), cifradas con el cast `encrypted:array`. Si se rota `APP_KEY`, hay que volver a cargarlas.
+  - Se configuran en `/admin/redes`: solo usuarios globales con `redes.configurar`.
+  - URL base y versión de la Graph API son configurables. Meta retira versiones viejas: si falla por versión, súbela ahí.
+- **Cuentas del candidato:** [RedCuenta](app/Models/RedCuenta.php), por tenant. Su `access_token`, también cifrado, existe solo cuando el candidato da acceso.
+- **Qué mide [RedesSincronizador](app/Services/Redes/RedesSincronizador.php)** según el acceso:
+  - **Instagram sin acceso:** Business Discovery con la cuenta IG profesional propia. El token debe tener `instagram_basic`, `instagram_manage_insights`, `pages_show_list`, `pages_read_engagement` y `business_management`; sin `instagram_manage_insights`, Meta responde el error #10. Solo funciona con cuentas profesionales y solo trae datos públicos: seguidores, publicaciones y me gusta/comentarios.
+  - **Instagram con token del candidato:** sus datos directos.
+  - **Facebook:** **siempre** necesita el token de la página. Meta no da métricas de páginas ajenas.
+- **Fotos diarias:** cada sincronización guarda una fila por cuenta y día en `redes_metricas`.
+  - El comando es `redes:sincronizar`, programado a las 06:00 en [routes/console.php](routes/console.php). En producción hace falta el cron `* * * * * php artisan schedule:run`.
+  - `withoutOverlapping()` usa la caché, así que `schedule:list` en local con MySQL apagado falla. Usa `CACHE_STORE=array`.
+- **Dos dashboards separados:**
+  - `/dashboard` ([Stats](app/Livewire/Dashboard/Stats.php)): solo registros.
+  - `/dashboard/redes` ([Redes](app/Livewire/Dashboard/Redes.php), permiso `redes.ver`): las redes. No vuelvas a mezclar redes en el de registros.
+
+  [RedesStats](app/Services/Redes/RedesStats.php) da al dashboard de redes dos vistas:
+  - **`resumen()`** (con candidato elegido): totales y crecimiento semanal;
+  - **`comparativo()`** (en "Todos"): recorre cada tenant con `TenantContext::con()` para no mezclar cuentas.
+- **Rivales:** `redes_cuentas.tipo` vale `propia` o `rival`.
+  - Los rivales son otros candidatos al mismo cargo. **Solo Instagram** (Business Discovery), nunca con token.
+  - `RedesStats::resumen()` y los totales **excluyen** rivales.
+  - `rivales()` compara el Instagram del candidato con los rivales por crecimiento en 7 días y por engagement (interacciones de la semana por cada 100 seguidores).
+- **Tono de los comentarios:** [AnalizadorComentarios](app/Services/Redes/Tono/AnalizadorComentarios.php).
+  - **Requisitos:** solo cuentas propias con **token del candidato**, porque Meta no da comentarios ajenos.
+  - **Cuándo corre:** en `redes:sincronizar` y con el botón "Analizar comentarios".
+  - **Clasificación:** la hace [ClaudeClasificadorTono](app/Services/Redes/Tono/ClaudeClasificadorTono.php) con el SDK oficial `anthropic-ai/sdk`:
+    - modelo `claude-opus-5-5` con effort `low`;
+    - salida estructurada `json_schema`;
+    - `fallbacks: default` (beta `server-side-fallback-2026-07-01`).
+  - **Credencial:** la API key va cifrada en `integraciones` (proveedor `anthropic`).
+  - **Interfaz:** el resto del código depende de la interfaz `ClasificadorTono`; los tests enlazan un clasificador falso.
+  - **Privacidad, no la rompas:** a Meta se le piden solo `id,text` (nunca el autor). El texto vive en memoria. En la base quedan los conteos y temas por día (`redes_tono`) y una huella HMAC del id (`redes_comentarios_vistos`) para no reclasificar.
+- **Instalar el SDK en local:** `composer require`/`install` necesita `--ignore-platform-req=php`, porque el PHP local es 8.5 y `phpspreadsheet` declara soporte hasta 8.4. Producción usa 8.2. En Windows, si falla con "Could not delete…", borra `vendor/anthropic-ai` y reintenta: es un bloqueo de archivos del IDE o del antivirus.
+- **No hacer scraping ni guardar personas con inclinación política inferida.** Solo cifras agregadas (Ley 1581: la opinión política es dato sensible).
+
+## Histórico electoral
+
+`/dashboard/historico` ([Historico](app/Livewire/Dashboard/Historico.php), permiso `historico.ver`) muestra quién ganó en cada departamento y municipio por año y cargo, con mapa, contrincantes, margen y, con candidato elegido, sus registros por municipio.
+
+- **Datos globales:** la tabla `historico_electoral` **no** lleva `tenant_id`: son resultados públicos de la Registraduría, iguales para todos los candidatos.
+- **Una fila** = votos de un candidato o lista en un municipio (o comuna para JAL). El total del departamento se suma; no se guardan filas de total.
+- **"Ganador"** = el más votado del lugar. En asamblea, concejo y JAL (listas) es el partido más votado. Los cálculos viven en [HistoricoElectoralStats](app/Services/Historico/HistoricoElectoralStats.php).
+- **Importar:** [ImportadorHistorico](app/Services/Historico/ImportadorHistorico.php), desde la misma pantalla. Solo usuarios **globales** con `historico.importar`.
+  - CSV (`,` o `;`, UTF-8 o Windows-1252) o Excel. Plantilla en [public/plantillas/historico-electoral.csv](public/plantillas/historico-electoral.csv).
+  - Reimportar reemplaza por año + cargo + departamento + municipio.
+  - Ignora votos nulos y no marcados. Lo que no reconoce como lugar lo reporta y no lo importa.
+- **Mapa por código DANE:** `municipios.codigo_dane` se llena con [CatalogoDane](app/Support/CatalogoDane.php) desde [database/data/municipios_dane.csv](database/data/municipios_dane.csv) (generado cruzando los GeoJSON con el catálogo). También corrige nombres con la Ñ dañada y agrega San José de Uré y Tuchín. El mapa pinta por `COD_MPIO`, no por nombre.
+- **Fuente:** [Observatorio de la Registraduría](https://observatorio.registraduria.gov.co/views/electoral/historicos-resultados.php) → "Visor histórico de resultados electorales".
+  - **1997–2015:** cada año es un aplicativo para Windows. Al instalarlo deja una SQLite en `C:\Estadisticas\db\Estadisticas.db`. Se carga con `php artisan historico:importar-registraduria "C:\Estadisticas\db\Estadisticas.db"` ([comando](app/Console/Commands/ImportarEstadisticasRegistraduriaCommand.php)). El año lo saca de la tabla `parametros`; `--depto=META` limita a un departamento.
+  - **Bases por elección:** territoriales en `Estadisticas.db`; presidencia en `Estadisticas1.db` (1.ª vuelta) y `Estadisticas2.db` (2.ª); Congreso en `EstadisticasCon.db`. El ámbito de cada cargo sale de `corporac.corpinde` (NA, DE, MU, CO). La vuelta se detecta sola: la 2.ª es en junio, o se pasa con `--vuelta`.
+  - **Qué se deja fuera:** el Parlamento Andino, las circunscripciones especiales (indígena y afro) y los consulados.
+  - **Codificación:** viene en UTF-8, en Latin-1 o con la Ñ codificada dos veces, y `texto()` lo normaliza. Si el nombre del partido viene dañado, se toma de su fila de voto por la lista.
+  - **Qué lee:** `x_resum_municipio_XX`, `x_resum_comuna_XX` (JAL) y `elegidos`. Nunca `candidat`, que trae cédulas.
+  - **Cómo cruza los lugares:** los códigos de la Registraduría no son DANE, así que el cruce es por nombre, con los alias de `ImportadorHistorico::ALIAS_DANE` y por prefijo único. Los corregimientos departamentales del Vaupés no son municipios y quedan fuera.
+  - **2018 en adelante:** CSV "mesa a mesa" (`Resultados.csv`, una fila por puesto). Se carga con `php artisan historico:importar-archivo Resultados.csv --anio=2018 --vuelta=1` ([comando](app/Console/Commands/ImportarHistoricoArchivoCommand.php)) o desde la pantalla.
+    - El importador suma los puestos por municipio y deja fuera consulados y circunscripciones especiales.
+    - "Código Municipio" de la Registraduría **no** es DANE: no lo mapees a `codigo_dane`.
+    - 2019 territoriales viene en un solo `MMV_2019_NACIONAL.csv` de ~3 GB, con una fila por mesa (15 M filas). El TXT trae el MD5 para verificar la descarga.
+    - El importador lee **en streaming**. En `guardar()` normaliza nombres y lugares una sola vez (memoria por texto) y suma en memoria por lugar. Para archivos así usa el comando con `-d memory_limit=4G`, no la pantalla.
+    - Convenciones 2019: voto por la lista = código de candidato `00000`; blanco, nulos y no marcados llegan con partido `N/A` y el nombre en el candidato; la comuna llega como "01COMUNA 1 POPULAR". 2019 no trae elegidos ni curules. Algunos municipios vienen sin la Ñ ("PUERTO CARREO", "PEOL"): el catálogo de búsqueda incluye también los nombres sin Ñ (`sinEnie()`).
+    - Congreso 2018 no tiene descarga en el Observatorio.
+- **Velocidad:**
+  - **Caché permanente:** `HistoricoElectoralStats` guarda cada consulta en caché sin vencimiento. La clave lleva una versión (`historico:version`) que `ImportadorHistorico::guardar()` sube al terminar (`invalidarCache()`).
+  - **Precálculo:** los comandos de importación corren al final `historico:precalcular`, que llena todas las vistas (país y cada departamento) en unos 25 s. Si importas desde la pantalla, la caché se llena sola con el uso. Si agregas un método público de consulta, envuélvelo con `recordar()`.
+  - **Índice:** `historico_filtros` = (anio, cargo, vuelta, departamento_id, municipio_id, partido).
+  - **Mapas web:** se sirven desde `public/data/deptos-web/`, 7 MB en total frente a 286 MB, simplificados a unos 50 m con [database/data/simplificar_geojson.py](database/data/simplificar_geojson.py). Los originales de `public/data/deptos/` se quedan como fuente. Los usan el Histórico y el dashboard de registros.
+- **Vuelta:** columna `historico_electoral.vuelta` (1 por defecto). `HistoricoElectoralStats::$vuelta` filtra todas las consultas a través de `tabla()`.
+- **Corporaciones (listas):** asamblea, concejo, JAL y Congreso se agrupan por **partido** (lista + voto preferente). Las curules son los elegidos del partido.
 
 ## Modelo de dominio
 
@@ -66,7 +183,7 @@ Ojo con las carpetas: `app/Livewire/Admin/Referrers/` es el primer sistema y `ap
 Antes de tocar cualquier cosa de WhatsApp, identifica cuál de las tres estás tocando.
 
 ### 1. Twilio — la que usa la UI ("WhatsApp Masivo")
-`Livewire\Whatsapp\CampaignComposer` crea un `WhatsappCampaign` y un `WhatsappMessage` por destinatario, y despacha `SendWhatsappCampaignMessage` en la cola `whatsapp`. No hay lotes ni rate limiting propio: Twilio encola del lado del Messaging Service.
+`Livewire\Whatsapp\CampaignComposer` crea un `WhatsappCampaign` y un `WhatsappMessage` por destinatario, y despacha `SendWhatsappCampaignMessage` en la cola `whatsapp`. **Solo envía por template aprobado** (Content SID `HX…`): el modo de mensaje libre (texto, imagen o ubicación) se quitó de la UI porque WhatsApp solo permite iniciar conversación con template. El job todavía soporta `body`/`media` por si se retoma. No hay lotes ni rate limiting propio: Twilio encola del lado del Messaging Service.
 
 Los webhooks usan **otros** modelos sobre las mismas tablas: `Campaign`, `CampaignMessage`, `CampaignMetrics` y `WhatsAppCampaignResponse`.
 

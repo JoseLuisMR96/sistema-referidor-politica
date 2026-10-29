@@ -38,6 +38,7 @@ class ArreglosUiTest extends TestCase
         parent::setUp();
 
         $this->seed(RolesYPermisosSeeder::class);
+        $this->usarTenant();
     }
 
     private function usuarioConRol(string $rol): User
@@ -83,9 +84,8 @@ class ArreglosUiTest extends TestCase
 
         Livewire::actingAs($this->usuarioConRol('Administrador'))
             ->test(CampaignComposer::class)
-            ->set('type', 'text')
+            ->set('contentSid', 'HX0123456789abcdef')
             ->set('name', 'Campaña de prueba')
-            ->set('body', 'Hola {name}')
             ->set('recipientsText', '3001234567|Ana')
             ->set('testMode', true)
             ->set('testPhone', '300 123 4567')
@@ -96,6 +96,10 @@ class ArreglosUiTest extends TestCase
         $this->assertSame('whatsapp:+573001234567', $msg->to);
         $this->assertSame('pending', $msg->status);
         $this->assertSame('sending', DB::table('campaigns')->value('status'));
+        $this->assertSame(['template', 'HX0123456789abcdef'], [
+            DB::table('campaigns')->value('type'),
+            DB::table('campaigns')->value('content_sid'),
+        ]);
         Queue::assertPushed(SendWhatsappCampaignMessage::class, 1);
     }
 
@@ -105,7 +109,7 @@ class ArreglosUiTest extends TestCase
 
         Livewire::actingAs($this->usuarioConRol('Administrador'))
             ->test(CampaignComposer::class)
-            ->set('type', 'text')
+            ->set('contentSid', 'HX0123456789abcdef')
             ->set('name', 'Campaña real')
             ->set('recipientsText', "3001234567|Ana\n123|Malo\n+573109876543")
             ->set('testMode', false)
@@ -124,7 +128,7 @@ class ArreglosUiTest extends TestCase
 
         Livewire::actingAs($this->usuarioConRol('Administrador'))
             ->test(CampaignComposer::class)
-            ->set('type', 'text')
+            ->set('contentSid', 'HX0123456789abcdef')
             ->set('name', 'Campaña de prueba')
             ->set('recipientsText', '3001234567')
             ->set('testPhone', '12345678')

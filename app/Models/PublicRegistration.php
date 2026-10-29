@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\User;
 use App\Models\Referrer;
 use Illuminate\Database\Eloquent\Model;
 
 class PublicRegistration extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'full_name',
         'document_type',

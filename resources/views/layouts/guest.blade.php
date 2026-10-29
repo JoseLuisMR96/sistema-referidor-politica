@@ -22,22 +22,14 @@
                 <div class="h-16 flex items-center px-6 border-b">
                     <a href="{{ route('login') }}" class="flex items-center gap-3 min-w-0">
 
-                        <img id="brandLogo" src="{{ asset('assets/brand/logo.png') }}"
-                            alt="Logo {{ config('app.name') }}" class="h-9 w-9 rounded-lg object-contain bg-white"
-                            onerror="this.style.display='none'; document.getElementById('brandFallbackIcon').classList.remove('hidden');">
-
-                        <div id="brandFallbackIcon"
-                            class="hidden flex h-9 w-9 rounded-lg bg-slate-900 text-white items-center justify-center font-extrabold">
-                            {{ strtoupper(substr(config('app.name'), 0, 1)) }}
-                        </div>
-
                         <div class="min-w-0">
-                            <div class="text-lg font-extrabold tracking-tight text-slate-900 truncate">
-                                {{ config('app.name') }} <span class="text-indigo-600">Politic</span>
+                            <img src="{{ asset('assets/brand/logo-completo.png') }}" alt="{{ config('app.name') }}"
+                                class="h-9 w-auto max-w-full object-contain"
+                                onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">
+                            <div class="hidden text-lg font-extrabold tracking-tight text-slate-900 truncate">
+                                {{ config('app.name') }}
                             </div>
-                            <div class="text-xs text-slate-500 truncate">
-                                Acceso administrativo
-                            </div>
+                            <div class="text-xs text-slate-500 truncate">Acceso administrativo</div>
                         </div>
                     </a>
                 </div>

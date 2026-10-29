@@ -12,12 +12,14 @@
             <div class="font-semibold">Código desactivado</div>
             <div class="text-sm mt-1">
                 Este enlace o código se encuentra desactivado actualmente. Por favor, comunícate con
-                <span class="font-semibold">MetaTank</span> para solicitar su reactivación.
+                <span class="font-semibold">VoteuSoft</span> para solicitar su reactivación.
             </div>
         </div>
 
     @else
         <div class="w-full max-w-2xl bg-white rounded-2xl shadow p-6 sm:p-8">
+            <x-cabecera-candidato :tenant="$tenantMarca" />
+
             <div class="flex items-start justify-between gap-4">
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">Registro</h1>

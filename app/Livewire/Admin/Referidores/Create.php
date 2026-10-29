@@ -2,14 +2,14 @@
 
 namespace App\Livewire\Admin\Referidores;
 
+use App\Livewire\Concerns\RequiereTenant;
 use App\Models\ReferidorPregonero;
-use Illuminate\Validation\Rule;
-use Livewire\Attributes\Layout;
 use Livewire\Component;
-
 
 class Create extends Component
 {
+    use RequiereTenant;
+
     public string $nombre = '';
     public string $cedula = '';
     public string $celular = '';
@@ -43,6 +43,10 @@ class Create extends Component
     public function guardar()
     {
         abort_unless(auth()->user()->can('pregoneros_referidores.crear'), 403);
+
+        if (! $this->exigirTenant()) {
+            return;
+        }
 
         $data = $this->validate();
 

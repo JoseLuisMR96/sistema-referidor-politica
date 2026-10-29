@@ -6,6 +6,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\PublicRegistration;
 use App\Models\Referrer;
+use Illuminate\Validation\Rule;
 
 class Index extends Component
 {
@@ -39,7 +40,14 @@ class Index extends Component
             'full_name' => ['required', 'string', 'max:190'],
             'phone' => ['nullable', 'string', 'max:30'],
             'document_number' => ['required', 'string', 'max:30'],
-            'referrer_id' => ['nullable', 'integer', 'exists:referrers,id'],
+            // Limitado al tenant del registro que se edita (ver saveEdit)
+            'referrer_id' => [
+                'nullable', 'integer',
+                Rule::exists('referrers', 'id')->where(
+                    'tenant_id',
+                    PublicRegistration::whereKey($this->editingId)->value('tenant_id'),
+                ),
+            ],
         ];
     }
 

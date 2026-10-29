@@ -3,41 +3,35 @@
 namespace App\Livewire\Whatsapp;
 
 use App\Jobs\SendWhatsappCampaignMessage;
+use App\Livewire\Concerns\RequiereTenant;
 use App\Models\WhatsappCampaign;
 use App\Models\WhatsappMessage;
 use App\Support\PhoneNumber;
-use Illuminate\Support\Facades\Storage;
+use App\Support\TenantContext;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class CampaignComposer extends Component
 {
+    use RequiereTenant;
     use WithFileUploads;
 
+    // Siempre por template aprobado de Twilio: es lo único que WhatsApp
+    // permite para iniciar una conversación (el mensaje libre solo vale dentro
+    // de las 24 h siguientes a que la persona escriba).
     public string $name = '';
-    public string $type = 'media'; // text|media|location
-    public string $body = "Hola {name}, ";
 
     public bool $testMode = true;
     public string $testPhone = '';
     public bool $testOnlyFirstN = false;
     public int $testN = 5;
 
-    public $mediaFile; // upload
-    public ?string $location_label = null;
-    public ?string $location_lat = null;
-    public ?string $location_lng = null;
-
     public string $recipientsSource = 'manual'; // manual|excel
     public $recipientsFile; // .xlsx upload
     public string $recipientsText = '';
 
-    public bool $useTwilioCampaign = false;
-    public string $twilioMode = 'custom'; // custom | template
-    public ?string $messagingServiceSid = null; // opcional (si quieres override del .env)
-    public ?string $templateName = null; // opcional
-    public ?string $templateVarsJson = null; // opcional
+    public ?string $messagingServiceSid = null; // opcional: si no, el del candidato o .env
 
     public ?string $contentSid = null;        // HX... (Twilio Content SID)
     public ?string $contentVarsJson = null;   // JSON de variables
@@ -56,7 +50,11 @@ class CampaignComposer extends Component
     {
         abort_unless(auth()->user()->can('whatsapp.enviar'), 403);
 
-        $usingTemplate = (bool) $this->useTwilioCampaign;
+        if (! $this->exigirTenant()) {
+            return;
+        }
+
+        $tenant = app(TenantContext::class)->tenant();
 
         $rules = [
             'recipientsSource' => 'required|in:manual,excel',
@@ -66,31 +64,16 @@ class CampaignComposer extends Component
             'testOnlyFirstN' => 'boolean',
             'testN' => 'nullable|integer|min:1|max:50',
 
-            'useTwilioCampaign' => 'boolean',
+            'name' => 'nullable|string|max:255',
             'messagingServiceSid' => 'nullable|string|min:10',
+            'contentSid' => 'required|string|min:5', // HX...
+            'contentVarsJson' => 'nullable|string',
         ];
 
         if ($this->recipientsSource === 'manual') {
             $rules['recipientsText'] = 'required|string|min:5';
         } else {
             $rules['recipientsFile'] = 'required|file|mimes:xlsx|max:5120'; // 5MB (ajústalo)
-        }
-
-        // Reglas SOLO si NO usa template
-        if (!$usingTemplate) {
-            $rules['name'] = 'required|min:3';
-            $rules['type'] = 'required|in:text,media,location';
-            $rules['body'] = 'nullable|string';
-
-            $rules['mediaFile'] = $this->type === 'media'
-                ? 'required|file|max:20480'
-                : 'nullable|file|max:20480';
-        }
-
-        // Reglas SOLO si usa template (inicia conversación)
-        if ($usingTemplate) {
-            $rules['contentSid'] = 'required|string|min:5'; // HX...
-            $rules['contentVarsJson'] = 'nullable|string';
         }
 
         // Si está en modo prueba, exige número de prueba (a menos que uses first N)
@@ -103,7 +86,7 @@ class CampaignComposer extends Component
         $this->invalidPhones = 0;
 
         // Validar JSON variables del template si vienen
-        if ($usingTemplate && $this->contentVarsJson) {
+        if ($this->contentVarsJson) {
             json_decode($this->contentVarsJson, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $this->addError('contentVarsJson', 'JSON inválido.');
@@ -146,45 +129,14 @@ class CampaignComposer extends Component
         $campaign = new WhatsappCampaign();
         $campaign->status = 'queued';
 
-        if ($usingTemplate) {
-            // Campaña Twilio (template)
-            $campaign->name = ($this->name ?: 'Campaña Twilio') . ($this->testMode ? ' (TEST)' : '');
-            $campaign->type = 'template';
+        $campaign->name = ($this->name ?: 'Campaña Twilio').($this->testMode ? ' (TEST)' : '');
+        $campaign->type = 'template';
+        $campaign->content_sid = trim((string) $this->contentSid); // HX...
+        $campaign->content_variables = $this->contentVarsJson ?: null;
 
-            $campaign->messaging_service_sid = $this->messagingServiceSid ?: config('services.twilio.messaging_service_sid');
-            $campaign->content_sid = $this->contentSid; // HX...
-            $campaign->content_variables = $this->contentVarsJson ?: null;
-
-            // No necesita body/media/location
-            $campaign->body = null;
-            $campaign->media_path = null;
-            $campaign->media_mime = null;
-            $campaign->location_label = null;
-            $campaign->location_lat = null;
-            $campaign->location_lng = null;
-            $campaign->location_url = null;
-        } else {
-            // Campaña normal (mensaje libre)
-            $campaign->name = $this->name . ($this->testMode ? ' (TEST)' : '');
-            $campaign->type = $this->type;
-            $campaign->body = $this->body;
-
-            if ($this->type === 'location') {
-                $campaign->location_label = $this->location_label;
-                $campaign->location_lat = $this->location_lat ? (float) $this->location_lat : null;
-                $campaign->location_lng = $this->location_lng ? (float) $this->location_lng : null;
-
-                if ($campaign->location_lat && $campaign->location_lng) {
-                    $campaign->location_url = "https://www.google.com/maps?q={$campaign->location_lat},{$campaign->location_lng}";
-                }
-            }
-
-            if ($this->type === 'media' && $this->mediaFile) {
-                $path = $this->mediaFile->store('whatsapp-media', 'public');
-                $campaign->media_path = $path;
-                $campaign->media_mime = $this->mediaFile->getMimeType();
-            }
-        }
+        // Cada candidato envía por su propio Messaging Service (su número) si
+        // no se indica otro aquí. El job usa este valor.
+        $campaign->messaging_service_sid = $this->messagingServiceSid ?: $tenant->messagingServiceSid();
 
         $campaign->save();
 
@@ -195,6 +147,7 @@ class CampaignComposer extends Component
         if ($testTo) {
             $msg = WhatsappMessage::create([
                 'campaign_id' => $campaign->id,
+                'tenant_id' => $campaign->tenant_id,
                 'to' => $testTo,
                 'contact_name' => 'TEST',
                 'status' => 'pending',
@@ -216,6 +169,7 @@ class CampaignComposer extends Component
 
             $msg = WhatsappMessage::create([
                 'campaign_id' => $campaign->id,
+                'tenant_id' => $campaign->tenant_id,
                 'to' => $to,
                 'contact_name' => $r['name'] ?? null,
                 'status' => 'pending',
@@ -239,12 +193,6 @@ class CampaignComposer extends Component
     {
         $this->reset([
             'name',
-            'type',
-            'body',
-            'mediaFile',
-            'location_label',
-            'location_lat',
-            'location_lng',
             'recipientsText',
             'testPhone',
             'testOnlyFirstN',
@@ -252,7 +200,6 @@ class CampaignComposer extends Component
             'messagingServiceSid',
             'contentSid',
             'contentVarsJson',
-            'useTwilioCampaign',
             'recipientsSource',
             'recipientsFile',
         ]);

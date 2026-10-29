@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Tenant;
 use App\Services\WppCampaignService;
 use Illuminate\Http\Request;
 
@@ -24,9 +25,18 @@ class WppCampaignController extends Controller
             'contacts.*.phone' => 'required|string',
             'contacts.*.name' => 'nullable|string',
             'session' => 'nullable|string|max:255',
+            // slug del tenant (candidato) al que pertenece la campaña
+            'tenant' => 'required|string',
         ]);
 
+        $tenant = Tenant::where('slug', $request->input('tenant'))->where('activo', true)->first();
+
+        if (! $tenant) {
+            return response()->json(['ok' => false, 'error' => 'tenant_invalido'], 422);
+        }
+
         $campaign = $service->createCampaignAndQueue(
+            tenantId: $tenant->id,
             contacts: $request->input('contacts'),
             name: $request->input('name'),
             template: $request->input('message'),

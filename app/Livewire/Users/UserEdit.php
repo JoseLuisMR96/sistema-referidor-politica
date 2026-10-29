@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Users;
 
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -22,16 +23,32 @@ class UserEdit extends Component
     // Roles seleccionados (IDs)
     public array $roleIds = [];
 
+    // '' = usuario global; id = restringido a ese tenant
+    public string $tenant_id = '';
+
     public function mount(User $user): void
     {
         abort_unless(auth()->user()->can('usuarios.editar'), 403);
+        $this->autorizarSobre($user);
 
         $this->user = $user;
+        $this->tenant_id = (string) ($user->tenant_id ?? '');
 
         $this->name = $user->name;
         $this->email = $user->email;
 
         $this->roleIds = $user->roles()->pluck('id')->map(fn($x) => (int)$x)->toArray();
+    }
+
+    /**
+     * Un usuario restringido solo administra usuarios de su propio tenant
+     * (nunca globales ni de otro tenant).
+     */
+    private function autorizarSobre(User $user): void
+    {
+        $yo = auth()->user();
+
+        abort_unless($yo->esGlobal() || (string) $user->tenant_id === (string) $yo->tenant_id, 403);
     }
 
     public function rules(): array
@@ -46,6 +63,7 @@ class UserEdit extends Component
             ],
             'roleIds' => ['array'],
             'roleIds.*' => ['integer', 'exists:roles,id'],
+            'tenant_id' => ['nullable', 'integer', 'exists:tenants,id'],
 
             // Password solo si se diligencia
             'password' => ['nullable', 'string', 'min:8', 'same:password_confirmation'],
@@ -56,6 +74,7 @@ class UserEdit extends Component
     public function update(): void
     {
         abort_unless(auth()->user()->can('usuarios.editar'), 403);
+        $this->autorizarSobre($this->user);
 
         $this->validate();
 
@@ -63,6 +82,11 @@ class UserEdit extends Component
             'name' => $this->name,
             'email' => $this->email,
         ]);
+
+        // Cambiar el alcance (global / tenant) solo lo hace un usuario global
+        if (auth()->user()->esGlobal()) {
+            $this->user->update(['tenant_id' => $this->tenant_id !== '' ? (int) $this->tenant_id : null]);
+        }
 
         if (filled($this->password)) {
             $this->user->update([
@@ -89,6 +113,7 @@ class UserEdit extends Component
         return view('livewire.users.edit', [
             'allRoles' => Role::query()->orderBy('name')->get(['id', 'name']),
             'userRoleNames' => $this->user->getRoleNames(),
+            'tenants' => auth()->user()->esGlobal() ? Tenant::orderBy('nombre')->get(['id', 'nombre']) : collect(),
         ]);
     }
 }

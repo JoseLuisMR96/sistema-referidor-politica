@@ -48,6 +48,20 @@
                     </div>
                 </div>
 
+                @if ($tenants->isNotEmpty())
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700">Alcance</label>
+                        <select wire:model="tenant_id" class="mt-1 w-full rounded-md border-gray-300">
+                            <option value="">Global: ve todos los tenants</option>
+                            @foreach ($tenants as $t)
+                                <option value="{{ $t->id }}">Solo {{ $t->nombre }}</option>
+                            @endforeach
+                        </select>
+                        <div class="text-xs text-gray-500 mt-1">Un usuario restringido solo ve y crea datos de su tenant.</div>
+                        @error('tenant_id') <div class="text-sm text-rose-600 mt-1">{{ $message }}</div> @enderror
+                    </div>
+                @endif
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                     {{-- Password --}}

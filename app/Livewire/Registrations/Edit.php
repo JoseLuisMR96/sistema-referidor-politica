@@ -7,6 +7,7 @@ use App\Models\Departamento;
 use App\Models\Municipio;
 use App\Models\PublicRegistration;
 use App\Models\Referrer;
+use Illuminate\Validation\Rule;
 
 class Edit extends Component
 {
@@ -109,7 +110,12 @@ class Edit extends Component
             'document_number' => ['required', 'string', 'max:30'],
             'age' => ['nullable', 'integer', 'min:0', 'max:120'],
             'gender' => ['nullable', 'string', 'max:30'],
-            'referrer_id' => ['nullable', 'integer', 'exists:referrers,id'],
+            // 'exists:' consulta la tabla sin el scope de tenant: hay que
+            // limitarlo al tenant del registro para no reasignarlo a otro.
+            'referrer_id' => [
+                'nullable', 'integer',
+                Rule::exists('referrers', 'id')->where('tenant_id', $this->publicRegistration->tenant_id),
+            ],
             'residence_municipality_id' => ['nullable', 'integer', 'exists:municipios,id'],
             'voting_municipality_id' => ['nullable', 'integer', 'exists:municipios,id'],
         ];
@@ -150,7 +156,7 @@ class Edit extends Component
     public function render()
     {
         return view('livewire.registrations.edit', [
-            'referrers' => Referrer::orderBy('name')->get(),
+            'referrers' => Referrer::where('tenant_id', $this->publicRegistration->tenant_id)->orderBy('name')->get(),
             'departamentos' => Departamento::query()->orderBy('nombre')->get(['id', 'nombre']),
         ]);
     }

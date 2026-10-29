@@ -21,6 +21,7 @@ class PermisosCriticosTest extends TestCase
         parent::setUp();
 
         $this->seed(RolesYPermisosSeeder::class);
+        $this->usarTenant();
     }
 
     private function usuarioConRol(string $rol): User

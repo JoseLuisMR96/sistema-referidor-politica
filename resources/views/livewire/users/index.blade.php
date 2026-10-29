@@ -91,6 +91,7 @@
                             <th class="py-3 px-4">Usuario</th>
                             <th class="py-3 px-4">Email</th>
                             <th class="py-3 px-4">Rol(es)</th>
+                            <th class="py-3 px-4">Alcance</th>
                             <th class="py-3 px-4 text-right">Acciones</th>
                         </tr>
                     </thead>
@@ -135,6 +136,14 @@
                                     @endif
                                 </td>
 
+                                <td class="py-3 px-4 text-xs">
+                                    @if ($u->tenant)
+                                        <span class="font-semibold text-slate-700">{{ $u->tenant->nombre }}</span>
+                                    @else
+                                        <span class="inline-flex rounded-full bg-indigo-50 text-indigo-700 px-2.5 py-0.5 font-semibold">Global</span>
+                                    @endif
+                                </td>
+
                                 <td class="py-3 px-4 text-right whitespace-nowrap">
                                     <div class="inline-flex gap-2">
                                         @can('usuarios.editar')
@@ -162,7 +171,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td class="py-10 px-4 text-center text-slate-500" colspan="4">
+                                <td class="py-10 px-4 text-center text-slate-500" colspan="5">
                                     No hay usuarios para mostrar.
                                 </td>
                             </tr>

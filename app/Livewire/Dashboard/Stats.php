@@ -6,6 +6,7 @@ use Livewire\Component;
 use App\Models\PublicRegistration;
 use App\Models\Referrer;
 use App\Services\DashboardStats;
+use App\Support\TenantContext;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -20,6 +21,13 @@ class Stats extends Component
     public array $generos = [];
     public array $rangosEdad = [];
     public array $conteoPorMunicipio = [];
+
+    // Apoyo dentro de la circunscripción del candidato elegido (null en
+    // "Todos los tenants" o si al tenant le falta cargo/lugar)
+    public ?array $circunscripcion = null;
+
+    // Departamento con el que abre el mapa
+    public string $deptoMapa = 'META';
 
     public function mount(DashboardStats $stats): void
     {
@@ -66,6 +74,13 @@ class Stats extends Component
 
         $this->generos = $stats->generos();
         $this->rangosEdad = $stats->rangosEdad();
+
+        $tenant = app(TenantContext::class)->tenant()?->loadMissing(['departamento', 'municipio']);
+
+        if ($tenant) {
+            $this->circunscripcion = $stats->circunscripcion($tenant);
+            $this->deptoMapa = $tenant->departamento?->nombre ?? $this->deptoMapa;
+        }
     }
 
     public function render()

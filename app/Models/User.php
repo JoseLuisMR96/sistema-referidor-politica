@@ -23,6 +23,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'tenant_id',   // nulo = usuario global
     ];
 
     /**
@@ -51,5 +52,19 @@ class User extends Authenticatable
     public function referrer()
     {
         return $this->hasOne(Referrer::class);
+    }
+
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * Global = sin tenant: puede ver todos y cambiar entre ellos.
+     * Restringido = solo ve y crea datos de su tenant.
+     */
+    public function esGlobal(): bool
+    {
+        return $this->tenant_id === null;
     }
 }

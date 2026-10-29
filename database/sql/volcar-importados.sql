@@ -15,7 +15,8 @@
 -- ###########################################################################
 -- BLOQUE 0 — (OPCIONAL, UNA SOLA VEZ) MARCAR VOLCADOS ANTERIORES.
 --
--- Requiere la migración 2026_10_11_000000_add_origen_to_public_registrations.
+-- Requiere las migraciones 2026_10_11_000000_add_origen_to_public_registrations
+-- y 2026_10_12_000000_create_tenants_and_add_tenant_id.
 -- Los volcados hechos antes de esa migración quedaron con origen='formulario'.
 -- Mismo criterio que el bloque 4: cédula del padrón + uno de los 3 códigos.
 -- Corre el SELECT, confirma el número y luego el UPDATE.
@@ -42,12 +43,20 @@
 -- BLOQUE 1 — VERIFICAR.  Obligatorio: no sigas si algo no cuadra.
 -- ###########################################################################
 
+-- 1.0) TENANT. Todo el script trabaja con UN tenant (candidato), identificado
+--      por su slug: 'tenant-inicial'. Si es otro, reemplaza ese slug en TODO
+--      el archivo (aparece en cada sentencia porque phpMyAdmin no conserva
+--      variables @ entre ejecuciones). Debe devolver 1 fila.
+SELECT id, nombre, slug FROM tenants WHERE slug = 'tenant-inicial';
+
 -- 1.a) Debe devolver EXACTAMENTE 3 filas.
 --      Si devuelve menos, el INSERT del bloque 2 NO falla: reparte entre los
 --      que existan, o inserta 0 filas, sin avisar de nada.
-SELECT id, code, name, is_active
+--      Las 3 deben ser del tenant: si alguna tiene otro tenant_id, PARA.
+SELECT id, code, name, is_active, tenant_id
 FROM referrers
-WHERE code IN ('MV31PAS1', 'FAM7CCQI', 'PHPZKJW7');
+WHERE code IN ('MV31PAS1', 'FAM7CCQI', 'PHPZKJW7')
+  AND tenant_id = (SELECT id FROM tenants WHERE slug = 'tenant-inicial');
 
 -- 1.b) Debe devolver VILLAVICENCIO / META.
 SELECT m.id, m.nombre, d.id AS depto_id, d.nombre AS depto
@@ -58,9 +67,11 @@ WHERE m.id = 685;
 -- 1.c) Cuántas se insertarían (las que aún no están). Anota este número.
 SELECT COUNT(*) AS por_insertar
 FROM imported_people i
-WHERE NOT EXISTS (
+WHERE i.tenant_id = (SELECT id FROM tenants WHERE slug = 'tenant-inicial')
+  AND NOT EXISTS (
     SELECT 1 FROM public_registrations p
-    WHERE p.document_type = 'CC'
+    WHERE p.tenant_id = i.tenant_id
+      AND p.document_type = 'CC'
       AND p.document_number = i.document_number
 );
 
@@ -73,12 +84,13 @@ WHERE NOT EXISTS (
 -- ###########################################################################
 
 INSERT INTO public_registrations
-    (full_name, document_type, document_number, age, gender,
+    (tenant_id, full_name, document_type, document_number, age, gender,
      residence_municipality, voting_municipality,
      residence_municipality_id, voting_municipality_id,
      phone, referrer_id, ref_code_used, status, origen,
      created_by_user_id, created_at, updated_at)
 SELECT
+    s.tenant_id,
     s.full_name,
     'CC',
     s.document_number,
@@ -98,16 +110,20 @@ SELECT
     NOW()
 FROM (
     SELECT
+        i.tenant_id,
         i.full_name,
         i.document_number,
         i.phone,
         i.created_by_user_id,
         FLOOR(RAND() * (SELECT COUNT(*) FROM referrers
-                        WHERE code IN ('MV31PAS1', 'FAM7CCQI', 'PHPZKJW7'))) AS pick
+                        WHERE code IN ('MV31PAS1', 'FAM7CCQI', 'PHPZKJW7')
+                          AND tenant_id = (SELECT id FROM tenants WHERE slug = 'tenant-inicial'))) AS pick
     FROM imported_people i
-    WHERE NOT EXISTS (
+    WHERE i.tenant_id = (SELECT id FROM tenants WHERE slug = 'tenant-inicial')
+      AND NOT EXISTS (
         SELECT 1 FROM public_registrations p
-        WHERE p.document_type = 'CC'
+        WHERE p.tenant_id = i.tenant_id
+          AND p.document_type = 'CC'
           AND p.document_number = i.document_number
     )
     -- Este LIMIT absurdo NO es un descuido: impide que el optimizador fusione
@@ -120,6 +136,7 @@ JOIN (
     SELECT id, code, ROW_NUMBER() OVER (ORDER BY id) - 1 AS rn
     FROM referrers
     WHERE code IN ('MV31PAS1', 'FAM7CCQI', 'PHPZKJW7')
+      AND tenant_id = (SELECT id FROM tenants WHERE slug = 'tenant-inicial')
 ) AS r ON r.rn = s.pick
 JOIN municipios m ON m.id = 685;
 

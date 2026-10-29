@@ -4,6 +4,8 @@
 
 <div class="py-6">
     <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
+        <x-tenant-requerido accion="crear referidores pregoneros" />
+
         <div class="bg-white shadow-sm sm:rounded-lg p-6 space-y-4">
 
             <div>
