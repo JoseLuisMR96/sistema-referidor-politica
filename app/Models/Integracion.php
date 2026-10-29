@@ -14,6 +14,9 @@ class Integracion extends Model
 {
     public const META = 'meta';
 
+    // API de Claude para clasificar el tono de los comentarios
+    public const ANTHROPIC = 'anthropic';
+
     protected $table = 'integraciones';
 
     protected $fillable = [

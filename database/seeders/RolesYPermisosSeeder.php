@@ -64,6 +64,10 @@ class RolesYPermisosSeeder extends Seeder
             'redes.configurar',
             'redes.ver',
 
+            // Histórico electoral: ver (todos los que analizan) e importar (solo globales)
+            'historico.ver',
+            'historico.importar',
+
         ];
 
         // 1) Crear/actualizar permisos (idempotente)
@@ -95,6 +99,7 @@ class RolesYPermisosSeeder extends Seeder
             'reportes.ver',
             'dashboard.exportar',
             'redes.ver',
+            'historico.ver',
         ]);
 
         $rolAnalista->syncPermissions([
@@ -106,6 +111,7 @@ class RolesYPermisosSeeder extends Seeder
             'reportes.ver',
             'dashboard.exportar',
             'redes.ver',
+            'historico.ver',
         ]);
 
         // Referidor: crea registros y ve los suyos

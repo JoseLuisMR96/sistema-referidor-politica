@@ -1,6 +1,6 @@
 <x-slot name="header">
     <div>
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">Tenants</h2>
+        <h2 class="font-semibold text-xl text-gray-800 leading-tight">Candidatos</h2>
         <div class="text-sm text-gray-500">
             Cada tenant es un candidato o campaña. Sus referidores, registros, pregoneros y envíos de WhatsApp quedan separados.
         </div>
@@ -93,6 +93,111 @@
                     </div>
                 </div>
 
+                {{-- ===== Identidad visual ===== --}}
+                <div class="border-t pt-4 space-y-4">
+                    <div>
+                        <div class="font-semibold text-gray-900">Identidad visual</div>
+                        <div class="text-xs text-gray-500">
+                            Con este candidato elegido, toda la app y sus formularios de registro se ven con sus colores, logo y foto.
+                            Usa el material oficial de la campaña.
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold">Partido o movimiento</label>
+                            <input wire:model.live.debounce.400ms="partido" class="mt-1 w-full rounded-md border-gray-300" />
+                            @error('partido') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold">Slogan</label>
+                            <input wire:model.live.debounce.400ms="slogan" class="mt-1 w-full rounded-md border-gray-300" />
+                            @error('slogan') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold">Color primario</label>
+                            <div class="mt-1 flex items-center gap-2">
+                                <input type="color" wire:model.live="color_primario" class="h-10 w-14 cursor-pointer rounded border-gray-300"
+                                    value="{{ $color_primario ?: '#4f46e5' }}">
+                                <input wire:model.live.debounce.400ms="color_primario" class="w-full rounded-md border-gray-300 font-mono" placeholder="#RRGGBB" />
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">Botones, enlaces, menú activo y cabecera de los formularios.</div>
+                            @error('color_primario') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                            @if ($contrastePrimario !== null && $contrastePrimario < 4.5)
+                                <div class="text-xs text-amber-700 mt-1">
+                                    El texto blanco se lee mal sobre este color (contraste {{ $contrastePrimario }}:1, se recomienda 4.5:1).
+                                    Prueba un tono más oscuro.
+                                </div>
+                            @endif
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold">Color secundario</label>
+                            <div class="mt-1 flex items-center gap-2">
+                                <input type="color" wire:model.live="color_secundario" class="h-10 w-14 cursor-pointer rounded border-gray-300"
+                                    value="{{ $color_secundario ?: '#0f172a' }}">
+                                <input wire:model.live.debounce.400ms="color_secundario" class="w-full rounded-md border-gray-300 font-mono" placeholder="#RRGGBB" />
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">Franja superior y banda del slogan.</div>
+                            @error('color_secundario') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold">Logo del partido o campaña</label>
+                            <input type="file" wire:model="logo" accept="image/png,image/jpeg,image/webp" class="mt-1 block w-full text-sm">
+                            <div class="text-xs text-gray-500 mt-1">PNG, JPG o WEBP, máx. 2 MB. Mejor con fondo transparente.</div>
+                            @error('logo') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                            @if (! $logo && $tenantEditado?->logo_path)
+                                <button type="button" wire:click="quitarArchivo('logo')" class="mt-1 text-xs text-rose-600 underline">Quitar logo actual</button>
+                            @endif
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold">Foto del candidato</label>
+                            <input type="file" wire:model="foto" accept="image/png,image/jpeg,image/webp" class="mt-1 block w-full text-sm">
+                            <div class="text-xs text-gray-500 mt-1">PNG, JPG o WEBP, máx. 4 MB. Se muestra en círculo: mejor un retrato centrado.</div>
+                            @error('foto') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                            @if (! $foto && $tenantEditado?->foto_path)
+                                <button type="button" wire:click="quitarArchivo('foto')" class="mt-1 text-xs text-rose-600 underline">Quitar foto actual</button>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Vista previa (con los valores del formulario, sin guardar) --}}
+                    @php
+                        $pPrim = \App\Support\Marca::esHex($color_primario) ? $color_primario : '#4f46e5';
+                        $pSec = \App\Support\Marca::esHex($color_secundario) ? $color_secundario : '#0f172a';
+                        $pLogo = $logo && ! $errors->has('logo') ? $logo->temporaryUrl() : $tenantEditado?->logoUrl();
+                        $pFoto = $foto && ! $errors->has('foto') ? $foto->temporaryUrl() : $tenantEditado?->fotoUrl();
+                    @endphp
+                    <div>
+                        <div class="text-xs uppercase tracking-wider text-gray-400 mb-1">Vista previa del formulario de registro</div>
+                        <div class="max-w-md overflow-hidden rounded-xl border">
+                            <div class="flex items-center gap-3 px-4 py-3 text-white" style="background-color: {{ $pPrim }}">
+                                @if ($pFoto)
+                                    <img src="{{ $pFoto }}" alt="" class="h-14 w-14 rounded-full object-cover ring-2 ring-white/80">
+                                @endif
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-lg font-extrabold truncate">{{ $nombre ?: 'Nombre del candidato' }}</div>
+                                    <div class="text-xs font-semibold uppercase tracking-wide opacity-80 truncate">{{ $partido ?: 'Partido' }}</div>
+                                </div>
+                                @if ($pLogo)
+                                    <img src="{{ $pLogo }}" alt="" class="h-12 w-12 rounded-lg bg-white object-contain p-1">
+                                @endif
+                            </div>
+                            <div class="px-4 py-1.5 text-center text-xs font-bold uppercase tracking-wide"
+                                style="background-color: {{ $pSec }}; color: {{ \App\Support\Marca::textoSobre($pSec) }}">
+                                {{ $slogan ?: 'Slogan de la campaña' }}
+                            </div>
+                            <div class="bg-white px-4 py-3">
+                                <span class="inline-block rounded-md px-3 py-1.5 text-xs font-semibold text-white" style="background-color: {{ $pPrim }}">Enviar registro</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex justify-end gap-2">
                     @if ($editingId)
                         <button type="button" wire:click="cancelar" class="px-4 py-2 rounded-md border text-sm">Cancelar</button>
@@ -121,7 +226,18 @@
                         @forelse ($tenants as $t)
                             <tr wire:key="tenant-{{ $t->id }}">
                                 <td class="py-3 px-4">
-                                    <div class="font-semibold text-gray-900">{{ $t->nombre }}</div>
+                                    <div class="flex items-center gap-2">
+                                        @if ($t->fotoUrl())
+                                            <img src="{{ $t->fotoUrl() }}" alt="" class="h-8 w-8 rounded-full object-cover">
+                                        @endif
+                                        @if (\App\Support\Marca::esHex($t->color_primario))
+                                            <span class="h-3 w-3 rounded-full" style="background-color: {{ $t->color_primario }}" title="Color primario"></span>
+                                        @endif
+                                        <div class="font-semibold text-gray-900">{{ $t->nombre }}</div>
+                                    </div>
+                                    @if ($t->partido)
+                                        <div class="text-xs text-gray-500">{{ $t->partido }}</div>
+                                    @endif
                                     <div class="text-xs text-gray-500">{{ $t->descripcion ?: '—' }}</div>
                                     <div class="text-xs {{ $t->ambito() ? 'text-indigo-700' : 'text-amber-700' }}">
                                         {{ $t->circunscripcionTexto() }}

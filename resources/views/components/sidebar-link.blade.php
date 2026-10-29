@@ -13,7 +13,7 @@
        'class' =>
            'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition ' .
            ($isActive
-               ? 'bg-slate-900 text-white shadow-sm'
+               ? 'bg-indigo-600 text-white shadow-sm'
                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900')
    ]) }}>
 

@@ -1,3 +1,24 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Colores de marca por defecto: el índigo de Tailwind y un secundario oscuro.
+ * <x-marca> los redefine con los colores del candidato elegido
+ * (ver tailwind.config.js y App\Support\Marca).
+ */
+:root {
+    --marca-50: 238 242 255;
+    --marca-100: 224 231 255;
+    --marca-200: 199 210 254;
+    --marca-300: 165 180 252;
+    --marca-400: 129 140 248;
+    --marca-500: 99 102 241;
+    --marca-600: 79 70 229;
+    --marca-700: 67 56 202;
+    --marca-800: 55 48 163;
+    --marca-900: 49 46 129;
+    --marca-950: 30 27 75;
+    --marca-sec: 15 23 42;
+    --marca-sec-texto: 255 255 255;
+}

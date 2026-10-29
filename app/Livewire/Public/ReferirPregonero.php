@@ -4,6 +4,7 @@ namespace App\Livewire\Public;
 
 use App\Models\ReferidorPregonero;
 use App\Models\ReferidoPregonero;
+use App\Models\Tenant;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -107,7 +108,10 @@ class ReferirPregonero extends Component
 
     public function render()
     {
-        return view('livewire.public.referir-pregonero')
-            ->layout('components.layouts.guest');
+        // Identidad visual del candidato del link (colores, foto, logo, slogan)
+        $tenant = $this->referidor ? Tenant::find($this->referidor->tenant_id) : null;
+
+        return view('livewire.public.referir-pregonero', ['tenantMarca' => $tenant])
+            ->layout('components.layouts.guest', ['tenantMarca' => $tenant]);
     }
 }

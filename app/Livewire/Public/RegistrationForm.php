@@ -191,7 +191,7 @@ class RegistrationForm extends Component
         }
 
         if (! $this->referrer->is_active) {
-            $this->addError('ref', 'Este link/código fue desactivado. Por favor contáctate con MetaTank para solicitar uno nuevo.');
+            $this->addError('ref', 'Este link/código fue desactivado. Por favor contáctate con VoteuSoft para solicitar uno nuevo.');
             return;
         }
 
@@ -256,7 +256,10 @@ class RegistrationForm extends Component
 
     public function render()
     {
-        return view('livewire.public.registration-form')
-            ->layout('components.layouts.guest');
+        // Identidad visual del candidato del link (colores, foto, logo, slogan)
+        $tenant = $this->referrer ? Tenant::find($this->referrer->tenant_id) : null;
+
+        return view('livewire.public.registration-form', ['tenantMarca' => $tenant])
+            ->layout('components.layouts.guest', ['tenantMarca' => $tenant]);
     }
 }

@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\ReferidoresPregonerosMasivoExportController;
 use App\Http\Controllers\Admin\ReferidosPregonerosExportController;
 use App\Http\Controllers\DashboardExportController;
 use App\Http\Controllers\Exports\PublicRegistrationsExportController;
+use App\Http\Controllers\MarcaArchivoController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TenantSwitchController;
 use App\Livewire\Admin\Redes\Index as RedesIndex;
@@ -16,6 +17,7 @@ use App\Livewire\Admin\Referrers\Create as ReferrersCreate;
 use App\Livewire\Admin\Referrers\Edit as ReferrersEdit;
 use App\Livewire\Admin\Referrers\Index as ReferrersIndex;
 use App\Livewire\Dashboard\Redes as DashboardRedes;
+use App\Livewire\Dashboard\Historico as DashboardHistorico;
 use App\Livewire\Dashboard\Stats;
 use App\Livewire\ImportedPeople\Index as ImportedPeopleIndex;
 use App\Livewire\ImportedPeople\Show as ImportedPeopleShow;
@@ -54,6 +56,11 @@ Route::get('/registro', RegistrationForm::class)->name('public.registro');
 Route::get('/pregoneros/{id_unico}/referir', ReferirPregonero::class)
     ->name('public.referir');
 
+// Logo y foto del candidato (públicos: se ven en sus formularios de registro)
+Route::get('/marca/{slug}/{tipo}', MarcaArchivoController::class)
+    ->where('tipo', 'logo|foto')
+    ->name('marca.archivo');
+
 /*
 |--------------------------------------------------------------------------
 | Privado (con login)
@@ -70,6 +77,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard/redes', DashboardRedes::class)
         ->middleware('permission:redes.ver')
         ->name('dashboard.redes');
+
+    // Histórico electoral (resultados públicos, globales)
+    Route::get('/dashboard/historico', DashboardHistorico::class)
+        ->middleware('permission:historico.ver')
+        ->name('dashboard.historico');
 
     // Perfil (Breeze)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

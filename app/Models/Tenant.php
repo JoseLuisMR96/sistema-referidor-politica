@@ -18,6 +18,12 @@ class Tenant extends Model
     protected $fillable = [
         'nombre',
         'descripcion',
+        'partido',
+        'slogan',
+        'color_primario',
+        'color_secundario',
+        'logo_path',
+        'foto_path',
         'cargo',
         'departamento_id',
         'municipio_id',
@@ -101,6 +107,20 @@ class Tenant extends Model
         };
 
         return "{$this->cargo->label()} · {$lugar}";
+    }
+
+    /**
+     * URL pública del logo o la foto (ruta marca.archivo). El ?v= cambia al
+     * actualizar el tenant para que el navegador no muestre la imagen vieja.
+     */
+    public function logoUrl(): ?string
+    {
+        return $this->logo_path ? route('marca.archivo', [$this->slug, 'logo', 'v' => $this->updated_at?->timestamp]) : null;
+    }
+
+    public function fotoUrl(): ?string
+    {
+        return $this->foto_path ? route('marca.archivo', [$this->slug, 'foto', 'v' => $this->updated_at?->timestamp]) : null;
     }
 
     public function users(): HasMany

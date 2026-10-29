@@ -19,10 +19,17 @@ class RedCuenta extends Model
 
     public const REDES = [self::FACEBOOK, self::INSTAGRAM];
 
+    // propia = del candidato; rival = otro candidato, solo para comparar
+    public const TIPO_PROPIA = 'propia';
+
+    public const TIPO_RIVAL = 'rival';
+
     protected $table = 'redes_cuentas';
 
     protected $fillable = [
         'red',
+        'tipo',
+        'etiqueta',
         'url',
         'usuario',
         'external_id',
@@ -45,6 +52,17 @@ class RedCuenta extends Model
     public function metricas(): HasMany
     {
         return $this->hasMany(RedMetrica::class, 'red_cuenta_id');
+    }
+
+    public function esRival(): bool
+    {
+        return $this->tipo === self::TIPO_RIVAL;
+    }
+
+    /** Nombre para mostrar: el del rival o el @usuario. */
+    public function nombreVisible(): string
+    {
+        return $this->etiqueta ?: '@'.ltrim($this->usuario, '@');
     }
 
     public function tieneAccesoPropio(): bool

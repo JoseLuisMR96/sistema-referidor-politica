@@ -94,6 +94,9 @@ class MunicipiosColombiaSeeder extends Seeder
             fclose($handle);
 
             $this->command?->info("OK. Municipios cargados/actualizados: {$count}");
+
+            // Código DANE (para el mapa) y nombres con la Ñ dañada
+            $this->command?->info('Códigos DANE aplicados: '.\App\Support\CatalogoDane::aplicar());
         } catch (\Throwable $e) {
             DB::rollBack();
             fclose($handle);

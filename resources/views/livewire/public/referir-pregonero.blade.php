@@ -10,6 +10,7 @@
     @else
         <div class="min-h-screen flex items-center justify-center p-4">
             <div class="w-full max-w-2xl bg-white rounded-2xl shadow p-6 sm:p-8">
+                <x-cabecera-candidato :tenant="$tenantMarca" />
 
                 <div class="flex items-start justify-between gap-4">
                     <div>

@@ -7,6 +7,8 @@ use App\Models\Integracion;
 use App\Models\RedCuenta;
 use App\Services\Redes\MetaGraphClient;
 use App\Services\Redes\RedesSincronizador;
+use App\Services\Redes\Tono\AnalizadorComentarios;
+use App\Services\Redes\Tono\ClasificadorTono;
 use App\Support\TenantContext;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -38,10 +40,19 @@ class Index extends Component
 
     public ?string $resultadoPrueba = null;
 
+    // --- IA para el tono de los comentarios (global) ---
+    public string $anthropic_key = '';
+
+    public ?string $resultadoIa = null;
+
     // --- Cuenta del candidato ---
     public ?int $cuentaId = null;
 
     public string $red = RedCuenta::INSTAGRAM;
+
+    public string $tipo = RedCuenta::TIPO_PROPIA;
+
+    public string $etiqueta = '';
 
     public string $url = '';
 
@@ -143,6 +154,47 @@ class Index extends Component
         }
     }
 
+    // --- IA (Anthropic) ---
+
+    public function guardarAnthropic(): void
+    {
+        $this->autorizarCredenciales();
+
+        $this->validate(['anthropic_key' => ['required', 'string', 'starts_with:sk-ant-', 'max:500']], [
+            'anthropic_key.required' => 'Pega la API key de Anthropic.',
+            'anthropic_key.starts_with' => 'Las API keys de Anthropic empiezan por sk-ant-.',
+        ]);
+
+        $ia = Integracion::query()->firstOrNew(['proveedor' => Integracion::ANTHROPIC]);
+        $ia->credenciales = ['api_key' => $this->anthropic_key];
+        $ia->activo = true;
+        $ia->save();
+
+        $this->reset('anthropic_key');
+        $this->resultadoIa = null;
+        session()->flash('success', 'API key de Anthropic guardada.');
+    }
+
+    public function probarIa(ClasificadorTono $clasificador): void
+    {
+        $this->autorizarCredenciales();
+
+        try {
+            // Tres frases de ejemplo con postura evidente
+            $r = $clasificador->clasificar('el candidato', 'prueba', [
+                'Todo mi apoyo, cuente con mi voto',
+                'Otro politiquero más, no le creo nada',
+                '¿A qué hora es la reunión?',
+            ]);
+
+            $this->resultadoIa = $r['tonos'] === [ClasificadorTono::A_FAVOR, ClasificadorTono::EN_CONTRA, ClasificadorTono::NEUTRO]
+                ? '✅ La IA responde y clasifica bien (a favor / en contra / neutro).'
+                : '⚠️ La IA responde, pero clasificó distinto a lo esperado: '.implode(', ', $r['tonos']);
+        } catch (\Throwable $e) {
+            $this->resultadoIa = '❌ '.$e->getMessage();
+        }
+    }
+
     // --- Cuentas del candidato ---
 
     public function editarCuenta(int $id): void
@@ -153,6 +205,8 @@ class Index extends Component
 
         $this->cuentaId = $cuenta->id;
         $this->red = $cuenta->red;
+        $this->tipo = $cuenta->tipo ?? RedCuenta::TIPO_PROPIA;
+        $this->etiqueta = (string) $cuenta->etiqueta;
         $this->url = (string) $cuenta->url;
         $this->usuario = $cuenta->usuario;
         $this->external_id = (string) $cuenta->external_id;
@@ -162,8 +216,9 @@ class Index extends Component
 
     public function cancelarCuenta(): void
     {
-        $this->reset(['cuentaId', 'url', 'usuario', 'external_id', 'cuenta_token']);
+        $this->reset(['cuentaId', 'url', 'usuario', 'external_id', 'cuenta_token', 'etiqueta']);
         $this->red = RedCuenta::INSTAGRAM;
+        $this->tipo = RedCuenta::TIPO_PROPIA;
         $this->resetValidation();
     }
 
@@ -179,7 +234,14 @@ class Index extends Component
         $this->usuario = ltrim(trim($this->usuario), '@');
 
         $data = $this->validate([
-            'red' => ['required', Rule::in(RedCuenta::REDES)],
+            'red' => [
+                'required', Rule::in(RedCuenta::REDES),
+                // Rivales: solo Instagram, que se mide con datos públicos.
+                // Facebook ajeno no se puede medir sin acceso.
+                Rule::when($this->tipo === RedCuenta::TIPO_RIVAL, Rule::in([RedCuenta::INSTAGRAM])),
+            ],
+            'tipo' => ['required', Rule::in([RedCuenta::TIPO_PROPIA, RedCuenta::TIPO_RIVAL])],
+            'etiqueta' => [Rule::requiredIf($this->tipo === RedCuenta::TIPO_RIVAL), 'nullable', 'string', 'max:150'],
             'url' => ['nullable', 'url', 'max:500'],
             'usuario' => [
                 'required', 'string', 'max:150',
@@ -193,17 +255,23 @@ class Index extends Component
         ], [
             'usuario.required' => 'Indica el usuario de Instagram o el id/alias de la página de Facebook.',
             'usuario.unique' => 'Esa cuenta ya está registrada para este candidato.',
+            'red.in' => 'Los rivales solo se pueden medir en Instagram: Meta no da datos de páginas de Facebook ajenas.',
+            'etiqueta.required' => 'Escribe el nombre del rival (p. ej. "Juan Pérez").',
         ]);
 
         $valores = [
             'red' => $data['red'],
+            'tipo' => $data['tipo'],
+            'etiqueta' => $data['etiqueta'] ?: null,
             'url' => $data['url'] ?: null,
             'usuario' => $data['usuario'],
             'external_id' => $data['external_id'] ?: null,
         ];
 
-        // Vacío = conservar el token guardado
-        if ($this->cuenta_token !== '') {
+        // Vacío = conservar el token guardado. Un rival nunca lleva token.
+        if ($data['tipo'] === RedCuenta::TIPO_RIVAL) {
+            $valores['access_token'] = null;
+        } elseif ($this->cuenta_token !== '') {
             $valores['access_token'] = $this->cuenta_token;
         }
 
@@ -246,6 +314,22 @@ class Index extends Component
         }
     }
 
+    public function analizarComentarios(int $id, AnalizadorComentarios $analizador): void
+    {
+        $this->autorizar();
+
+        $cuenta = RedCuenta::findOrFail($id);
+
+        try {
+            $r = $analizador->analizar($cuenta);
+            session()->flash('success', $r['nuevos'] === 0
+                ? "{$cuenta->nombreVisible()}: no hay comentarios nuevos de los últimos 7 días."
+                : "{$cuenta->nombreVisible()}: {$r['nuevos']} comentarios analizados ({$r['a_favor']} a favor, {$r['en_contra']} en contra, {$r['neutro']} neutros).");
+        } catch (\Throwable $e) {
+            session()->flash('error', "{$cuenta->nombreVisible()}: {$e->getMessage()}");
+        }
+    }
+
     private function enmascarar(?string $valor): ?string
     {
         if (blank($valor)) {
@@ -264,6 +348,9 @@ class Index extends Component
             'esGlobal' => auth()->user()->esGlobal(),
             'secretoGuardado' => $this->enmascarar($meta->credencial('app_secret')),
             'tokenGuardado' => $this->enmascarar($meta->credencial('access_token')),
+            'iaGuardada' => $this->enmascarar(
+                Integracion::query()->where('proveedor', Integracion::ANTHROPIC)->first()?->credencial('api_key')
+            ),
             'tenant' => $contexto->tenant(),
             'cuentas' => $contexto->esTodos() ? collect() : RedCuenta::orderBy('red')->orderBy('usuario')->get(),
             'redes' => RedCuenta::REDES,

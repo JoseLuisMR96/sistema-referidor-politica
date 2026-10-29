@@ -82,6 +82,36 @@
                         <button type="button" wire:click="guardarCredenciales" class="px-4 py-2 rounded-md bg-gray-800 text-white text-sm">Guardar</button>
                     </div>
                 </div>
+
+                {{-- ===== IA para el tono de los comentarios (global) ===== --}}
+                <div class="bg-white shadow-sm sm:rounded-lg p-6 space-y-4">
+                    <div>
+                        <div class="text-lg font-semibold text-gray-900">IA para el tono de los comentarios (Claude)</div>
+                        <div class="text-sm text-gray-500">
+                            Clasifica los comentarios de las cuentas del candidato en a favor, en contra o neutro.
+                            Solo se guardan los conteos y los temas: nunca el texto ni quién comentó.
+                            La API key se crea en console.anthropic.com y se guarda cifrada.
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold">API key de Anthropic</label>
+                        <input type="password" wire:model="anthropic_key" autocomplete="new-password"
+                            class="mt-1 w-full rounded-md border-gray-300 font-mono"
+                            placeholder="{{ $iaGuardada ? "Guardada: {$iaGuardada} (escribe otra para cambiarla)" : 'sk-ant-...' }}" />
+                        @error('anthropic_key') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-end gap-2">
+                        @if ($resultadoIa)
+                            <div class="mr-auto text-sm">{{ $resultadoIa }}</div>
+                        @endif
+                        @if ($iaGuardada)
+                            <button type="button" wire:click="probarIa" class="px-4 py-2 rounded-md border text-sm">Probar IA</button>
+                        @endif
+                        <button type="button" wire:click="guardarAnthropic" class="px-4 py-2 rounded-md bg-gray-800 text-white text-sm">Guardar</button>
+                    </div>
+                </div>
             @endif
 
             {{-- ===== Cuentas del candidato ===== --}}
@@ -93,6 +123,7 @@
                     <div class="text-sm text-gray-500">
                         Instagram sin acceso del candidato: solo datos públicos y solo si su cuenta es profesional (empresa o creador).
                         Facebook: hace falta el token de su página.
+                        Los <strong>rivales</strong> (otros candidatos al mismo cargo) se miden solo en Instagram, para comparar en el Dashboard de redes.
                     </div>
                 </div>
 
@@ -103,12 +134,30 @@
                 @else
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
+                            <label class="block text-sm font-semibold">Tipo de cuenta</label>
+                            <select wire:model.live="tipo" class="mt-1 w-full rounded-md border-gray-300">
+                                <option value="propia">Del candidato</option>
+                                <option value="rival">Rival (otro candidato)</option>
+                            </select>
+                            @error('tipo') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                        </div>
+
+                        <div>
+                            @if ($tipo === 'rival')
+                                <label class="block text-sm font-semibold">Nombre del rival</label>
+                                <input wire:model="etiqueta" class="mt-1 w-full rounded-md border-gray-300" placeholder="Juan Pérez" />
+                                @error('etiqueta') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                            @endif
+                        </div>
+
+                        <div>
                             <label class="block text-sm font-semibold">Red</label>
                             <select wire:model.live="red" class="mt-1 w-full rounded-md border-gray-300">
                                 @foreach ($redes as $r)
                                     <option value="{{ $r }}">{{ ucfirst($r) }}</option>
                                 @endforeach
                             </select>
+                            @error('red') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
                         </div>
 
                         <div>
@@ -134,7 +183,7 @@
                             @error('external_id') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
                         </div>
 
-                        <div class="sm:col-span-2">
+                        <div class="sm:col-span-2 {{ $tipo === 'rival' ? 'hidden' : '' }}">
                             <label class="block text-sm font-semibold">Token de acceso del candidato (opcional)</label>
                             <input type="password" wire:model="cuenta_token" autocomplete="new-password"
                                 class="mt-1 w-full rounded-md border-gray-300 font-mono"
@@ -166,7 +215,12 @@
                                 @forelse ($cuentas as $c)
                                     <tr wire:key="cuenta-{{ $c->id }}" class="{{ $c->activo ? '' : 'opacity-50' }}">
                                         <td class="py-3 px-4">
-                                            <div class="font-semibold">{{ ucfirst($c->red) }} · {{ $c->usuario }}</div>
+                                            <div class="font-semibold">
+                                                {{ ucfirst($c->red) }} · {{ $c->usuario }}
+                                                @if ($c->esRival())
+                                                    <span class="ml-1 rounded-full bg-orange-100 text-orange-800 px-2 py-0.5 text-xs font-semibold">Rival: {{ $c->etiqueta }}</span>
+                                                @endif
+                                            </div>
                                             @if ($c->url)
                                                 <a href="{{ $c->url }}" target="_blank" rel="noopener" class="text-xs text-indigo-600 underline break-all">{{ $c->url }}</a>
                                             @endif
@@ -187,6 +241,10 @@
                                         </td>
                                         <td class="py-3 px-4 text-right whitespace-nowrap">
                                             <button type="button" wire:click="sincronizar({{ $c->id }})" class="px-3 py-1.5 rounded-md border text-xs font-semibold">Sincronizar</button>
+                                            @if (! $c->esRival() && $c->tieneAccesoPropio())
+                                                <button type="button" wire:click="analizarComentarios({{ $c->id }})" wire:loading.attr="disabled"
+                                                    class="px-3 py-1.5 rounded-md border text-xs font-semibold">Analizar comentarios</button>
+                                            @endif
                                             <button type="button" wire:click="editarCuenta({{ $c->id }})" class="px-3 py-1.5 rounded-md border text-xs font-semibold">Editar</button>
                                             <button type="button" wire:click="alternarCuenta({{ $c->id }})" class="px-3 py-1.5 rounded-md border text-xs font-semibold">
                                                 {{ $c->activo ? 'Pausar' : 'Activar' }}

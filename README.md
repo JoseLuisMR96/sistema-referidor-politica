@@ -1,4 +1,4 @@
-# MetaTank Politic — Panel de referidos
+# VoteuSoft — Panel de referidos
 
 Panel administrativo para campañas políticas en Colombia. Registra referidos
 atribuidos a sus referidores, muestra métricas en un dashboard y envía campañas
