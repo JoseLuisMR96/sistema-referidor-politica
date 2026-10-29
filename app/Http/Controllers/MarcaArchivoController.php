@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Sirve el logo o la foto de un candidato.
+ * Sirve el logo, la foto o la imagen de fondo de un candidato.
  *
  * Es público a propósito: se muestran en sus formularios de registro, que
  * abren personas sin cuenta. Va por ruta (y no por /storage) para no
@@ -17,7 +17,7 @@ class MarcaArchivoController extends Controller
 {
     public function __invoke(string $slug, string $tipo): Response
     {
-        abort_unless(in_array($tipo, ['logo', 'foto'], true), 404);
+        abort_unless(in_array($tipo, ['logo', 'foto', 'fondo'], true), 404);
 
         $ruta = Tenant::where('slug', $slug)->value("{$tipo}_path");
 

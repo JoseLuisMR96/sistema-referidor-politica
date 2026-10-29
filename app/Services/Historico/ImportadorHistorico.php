@@ -34,7 +34,7 @@ class ImportadorHistorico
         'curules' => ['curules', 'escanos', 'curul'],
         // Ojo: "Código Municipio" de la Registraduría NO es DANE; no va aquí
         'codigo_dane' => ['codigo dane', 'cod mpio dane', 'divipola'],
-        'circunscripcion' => ['circunscripcion'],
+        'circunscripcion' => ['nombre circunscripcion', 'circunscripcion'],
     ];
 
     // Lo que no es de un candidato ni lista: no se guarda
@@ -135,7 +135,7 @@ class ImportadorHistorico
 
             $departamento = trim((string) ($fila['departamento'] ?? ''));
             $circ = (string) ($fila['circunscripcion'] ?? '');
-            if (($circ !== '' && ! ctype_digit($circ) && preg_match('/INDIGEN|AFRO|ESPECIAL|INTERNACIONAL|EXTERIOR/i', $circ))
+            if (($circ !== '' && ! ctype_digit($circ) && preg_match('/INDIGEN|AFRO|ESPECIAL|INTERNACIONAL|EXTERIOR|CITREP|PAZ|RAIZAL/i', $circ))
                 || stripos($departamento, 'CONSULADO') === 0) {
                 $resumen['omitidas']++;
 
@@ -278,15 +278,31 @@ class ImportadorHistorico
         $f = fopen($ruta, 'r');
         $muestra = (string) fread($f, 65536);
 
+        // UTF-16 (los "mesa a mesa" de Congreso 2022 vienen así): se convierte al
+        // vuelo con un filtro de stream, sin cargar el archivo en memoria
+        $utf16 = match (substr($muestra, 0, 2)) {
+            "\xFF\xFE" => 'UTF-16LE',
+            "\xFE\xFF" => 'UTF-16BE',
+            default => null,
+        };
+
+        if ($utf16) {
+            $cuerpo = substr($muestra, 2);
+            $muestra = mb_convert_encoding(substr($cuerpo, 0, strlen($cuerpo) - strlen($cuerpo) % 2), 'UTF-8', $utf16);
+        }
+
         $muestra = preg_replace('/^\xEF\xBB\xBF/', '', $muestra);
         $primera = strtok($muestra, "\r\n") ?: '';
         $separador = substr_count($primera, ';') > substr_count($primera, ',') ? ';' : ',';
         // Se revisa hasta el último salto de línea para no cortar un carácter a la mitad
         $corte = strrpos($muestra, "\n");
-        $latin = ! mb_check_encoding($corte ? substr($muestra, 0, $corte) : $muestra, 'UTF-8');
+        $latin = ! $utf16 && ! mb_check_encoding($corte ? substr($muestra, 0, $corte) : $muestra, 'UTF-8');
 
         rewind($f);
-        if (fread($f, 3) !== "\xEF\xBB\xBF") {
+        if ($utf16) {
+            fread($f, 2); // marca de orden de bytes
+            stream_filter_append($f, "convert.iconv.{$utf16}/UTF-8", STREAM_FILTER_READ);
+        } elseif (fread($f, 3) !== "\xEF\xBB\xBF") {
             rewind($f);
         }
 

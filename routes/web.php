@@ -56,9 +56,9 @@ Route::get('/registro', RegistrationForm::class)->name('public.registro');
 Route::get('/pregoneros/{id_unico}/referir', ReferirPregonero::class)
     ->name('public.referir');
 
-// Logo y foto del candidato (públicos: se ven en sus formularios de registro)
+// Logo, foto y fondo del candidato (públicos: se ven en sus formularios de registro)
 Route::get('/marca/{slug}/{tipo}', MarcaArchivoController::class)
-    ->where('tipo', 'logo|foto')
+    ->where('tipo', 'logo|foto|fondo')
     ->name('marca.archivo');
 
 /*

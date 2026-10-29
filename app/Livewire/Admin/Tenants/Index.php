@@ -55,6 +55,8 @@ class Index extends Component
 
     public $foto = null;
 
+    public $fondo = null;  // imagen decorativa detrás del contenido (bandera, etc.)
+
     private function autorizar(): void
     {
         $user = auth()->user();
@@ -111,6 +113,7 @@ class Index extends Component
             // Sin SVG: puede llevar scripts y se serviría desde nuestro dominio
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
             'foto' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:4096'],
+            'fondo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:6144'],
             'municipio_id' => [
                 Rule::requiredIf((bool) $cargo?->requiereMunicipio()),
                 'nullable', 'integer',
@@ -159,7 +162,7 @@ class Index extends Component
         $this->color_primario = (string) $tenant->color_primario;
         $this->color_secundario = (string) $tenant->color_secundario;
         $this->tema_completo = (bool) $tenant->tema_completo;
-        $this->reset(['logo', 'foto']);
+        $this->reset(['logo', 'foto', 'fondo']);
         $this->resetValidation();
     }
 
@@ -167,7 +170,7 @@ class Index extends Component
     {
         $this->reset([
             'editingId', 'nombre', 'descripcion', 'twilio_messaging_service_sid', 'cargo', 'departamento_id', 'municipio_id',
-            'partido', 'slogan', 'color_primario', 'color_secundario', 'tema_completo', 'logo', 'foto',
+            'partido', 'slogan', 'color_primario', 'color_secundario', 'tema_completo', 'logo', 'foto', 'fondo',
         ]);
         $this->activo = true;
         $this->resetValidation();
@@ -192,7 +195,7 @@ class Index extends Component
         }
 
         // Los archivos se guardan aparte, ya con el id del tenant
-        unset($data['logo'], $data['foto']);
+        unset($data['logo'], $data['foto'], $data['fondo']);
 
         if ($this->editingId) {
             $tenant = Tenant::findOrFail($this->editingId);
@@ -205,6 +208,7 @@ class Index extends Component
 
         $this->guardarArchivo($tenant, 'logo', $this->logo);
         $this->guardarArchivo($tenant, 'foto', $this->foto);
+        $this->guardarArchivo($tenant, 'fondo', $this->fondo);
 
         $this->cancelar();
     }
@@ -279,7 +283,7 @@ class Index extends Component
     public function quitarArchivo(string $tipo): void
     {
         $this->autorizar();
-        abort_unless(in_array($tipo, ['logo', 'foto'], true) && $this->editingId, 404);
+        abort_unless(in_array($tipo, ['logo', 'foto', 'fondo'], true) && $this->editingId, 404);
 
         $tenant = Tenant::findOrFail($this->editingId);
 
