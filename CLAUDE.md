@@ -264,6 +264,8 @@ Al agregar un permiso: añádelo al array del seeder, asígnalo a los roles, pro
 
 ## Trampas conocidas
 
+- **`public/build` va en el repositorio** (Hostinger no tiene Node). Antes de subir cambios de vistas o CSS, corre **`npm run build`** y súbelo. Con `composer dev` corriendo, Vite genera las clases al vuelo (`public/hot`) y en local todo se ve bien aunque el build esté viejo: ya pasó con la imagen de fondo, que en producción salía opaca y encima del encabezado.
+
 - **`QUEUE_CONNECTION=sync` en local** → los jobs corren inline y se ignoran los `delay` (por ejemplo, los 10–25 s entre mensajes de WPPConnect). En producción debe ser `database` o `redis`, con workers levantados.
 - **Las migraciones deben correr en MySQL y en sqlite.** Los tests usan sqlite `:memory:` ([phpunit.xml](phpunit.xml)). Nada de `ALTER TABLE … ADD INDEX IF NOT EXISTS`, `MODIFY COLUMN … ENUM` ni `UPDATE … JOIN` sin proteger con `DB::connection()->getDriverName()`.
 - **El ENUM de `campaigns.status` se deriva de `CampaignStatusEnum`.** Si agregas un caso al enum, hace falta una migración que amplíe la columna: si no, MySQL rechaza el valor. Ya pasó una vez con `draft`, `batched` y `sending`.
