@@ -16,8 +16,8 @@
 
 <body class="min-h-screen bg-gray-100 border-t-4 border-secundario">
     @if (($tenantMarca ?? null)?->fondoUrl())
-        <div aria-hidden="true" class="pointer-events-none fixed inset-x-0 bottom-0 h-[50vh] z-0 opacity-25 bg-no-repeat"
-            style="background-image: url('{{ $tenantMarca->fondoUrl() }}'); background-position: left bottom; background-size: 100% auto;"></div>
+        <div aria-hidden="true" class="pointer-events-none fixed inset-x-0 bottom-0 z-0 opacity-25 bg-no-repeat"
+            style="aspect-ratio: {{ $tenantMarca->fondoProporcion() }}; max-height: 100vh; background-image: url('{{ $tenantMarca->fondoUrl() }}'); background-position: left bottom; background-size: cover;"></div>
     @endif
     <div class="relative z-10 min-h-screen flex items-center justify-center p-4">
         {{ $slot }}

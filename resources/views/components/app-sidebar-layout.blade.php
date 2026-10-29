@@ -295,8 +295,8 @@
             {{-- Imagen de fondo del candidato (bandera, tigre...): decorativa, detrás de las tarjetas --}}
             @if ($tenantActual?->fondoUrl())
                 <div aria-hidden="true"
-                    class="pointer-events-none fixed bottom-0 right-0 left-0 lg:left-72 h-[55vh] z-0 opacity-[0.18] bg-no-repeat"
-                    style="background-image: url('{{ $tenantActual->fondoUrl() }}'); background-position: left bottom; background-size: 100% auto;"></div>
+                    class="pointer-events-none fixed bottom-0 right-0 left-0 lg:left-72 z-0 opacity-[0.18] bg-no-repeat"
+                    style="aspect-ratio: {{ $tenantActual->fondoProporcion() }}; max-height: 100vh; background-image: url('{{ $tenantActual->fondoUrl() }}'); background-position: left bottom; background-size: cover;"></div>
             @endif
 
             {{-- CONTENT --}}
