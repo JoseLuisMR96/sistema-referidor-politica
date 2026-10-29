@@ -48,6 +48,9 @@ class Index extends Component
 
     public string $color_secundario = '';
 
+    // Tema completo: fondo, tarjetas y textos de toda la app con su color
+    public bool $tema_completo = false;
+
     public $logo = null;   // archivo subido (Livewire)
 
     public $foto = null;
@@ -104,6 +107,7 @@ class Index extends Component
             'slogan' => ['nullable', 'string', 'max:200'],
             'color_primario' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'color_secundario' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'tema_completo' => ['boolean'],
             // Sin SVG: puede llevar scripts y se serviría desde nuestro dominio
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
             'foto' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:4096'],
@@ -154,6 +158,7 @@ class Index extends Component
         $this->slogan = (string) $tenant->slogan;
         $this->color_primario = (string) $tenant->color_primario;
         $this->color_secundario = (string) $tenant->color_secundario;
+        $this->tema_completo = (bool) $tenant->tema_completo;
         $this->reset(['logo', 'foto']);
         $this->resetValidation();
     }
@@ -162,7 +167,7 @@ class Index extends Component
     {
         $this->reset([
             'editingId', 'nombre', 'descripcion', 'twilio_messaging_service_sid', 'cargo', 'departamento_id', 'municipio_id',
-            'partido', 'slogan', 'color_primario', 'color_secundario', 'logo', 'foto',
+            'partido', 'slogan', 'color_primario', 'color_secundario', 'tema_completo', 'logo', 'foto',
         ]);
         $this->activo = true;
         $this->resetValidation();

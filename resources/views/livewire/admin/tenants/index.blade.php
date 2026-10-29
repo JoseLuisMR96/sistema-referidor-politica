@@ -140,9 +140,20 @@
                                     value="{{ $color_secundario ?: '#0f172a' }}">
                                 <input wire:model.live.debounce.400ms="color_secundario" class="w-full rounded-md border-gray-300 font-mono" placeholder="#RRGGBB" />
                             </div>
-                            <div class="text-xs text-gray-500 mt-1">Franja superior y banda del slogan.</div>
+                            <div class="text-xs text-gray-500 mt-1">Franja superior y banda del slogan. Con el tema completo, color de botones, menú activo y enlaces.</div>
                             @error('color_secundario') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
                         </div>
+
+                        <label class="sm:col-span-2 flex items-start gap-3 rounded-lg border px-3 py-2">
+                            <input type="checkbox" wire:model.live="tema_completo" class="mt-1 rounded border-gray-300">
+                            <span>
+                                <span class="block text-sm font-semibold">Pintar toda la app con su color (tema completo)</span>
+                                <span class="block text-xs text-gray-500">
+                                    El fondo, las tarjetas y los textos toman el color primario (letras blancas o negras, según cuál se lea mejor).
+                                    Sin marcar, solo cambian botones y enlaces.
+                                </span>
+                            </span>
+                        </label>
 
                         <div>
                             <label class="block text-sm font-semibold">Logo del partido o campaña</label>

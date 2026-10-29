@@ -6,7 +6,7 @@
 @endphp
 
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" @class(['tema-marca' => \App\Support\Marca::temaCompleto($tenantActual)])>
 
 <head>
     <meta charset="utf-8">
@@ -307,6 +307,23 @@
 
     @livewireScripts
     @stack('scripts')
+
+    {{-- Tema completo: textos y líneas de las gráficas con los colores del tema
+         (corre después de cargar Chart.js y antes de que se dibujen) --}}
+    @if (\App\Support\Marca::temaCompleto($tenantActual))
+        <script>
+            (function () {
+                if (!window.Chart) return;
+                const css = getComputedStyle(document.documentElement);
+                const color = (v, a = 1) => `rgb(${css.getPropertyValue(v).trim()} / ${a})`;
+                Chart.defaults.color = color('--tema-texto-2');
+                // Ojo: no cambiar Chart.defaults.borderColor/backgroundColor: eso
+                // apaga la paleta automática de Chart.js y las gráficas quedan sin color.
+                Chart.defaults.scale.grid.color = color('--tema-borde', 0.6);
+                Chart.defaults.elements.arc.borderColor = color('--tema-superficie');
+            })();
+        </script>
+    @endif
 </body>
 
 </html>

@@ -20,8 +20,8 @@ use Illuminate\Support\Facades\Storage;
  * (el tigre) o foto.* (png, jpg o webp), se copian al disco public. Si no,
  * se suben después desde Candidatos > Editar.
  *
- * Colores: #00062A es el primario (botones, menú, cabecera). El texto sobre
- * él ya sale blanco (#FFFFFF), así que no hace falta guardarlo aparte.
+ * Colores: tema completo en azul #00062A con letras blancas (#FFFFFF, salen
+ * solas por contraste) y amarillo #FFD500 como acento.
  */
 class HenryPalmaSeeder extends Seeder
 {
@@ -46,6 +46,8 @@ class HenryPalmaSeeder extends Seeder
             'partido' => 'Defensores de la Patria',
             'slogan' => '¡FIRME POR LA PATRIA!',
             'color_primario' => '#00062A',
+            'color_secundario' => '#FFD500', // amarillo de algunas letras: botones, menú activo, enlaces
+            'tema_completo' => true,          // toda la app en su azul, con letras blancas
             'cargo' => CargoEnum::GOBERNACION,
             'departamento_id' => $meta->id,
             'municipio_id' => null,

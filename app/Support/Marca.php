@@ -114,6 +114,63 @@ class Marca
             $vars[] = '--marca-sec-texto: '.implode(' ', self::rgb(self::textoSobre($tenant->color_secundario))).';';
         }
 
+        foreach (self::tema($tenant) as $nombre => $hex) {
+            $vars[] = "--tema-{$nombre}: ".implode(' ', self::rgb($hex)).';';
+        }
+
         return $vars ? ':root{'.implode('', $vars).'}' : '';
+    }
+
+    /** ¿Pinta toda la app (fondo, tarjetas, textos) con el color del candidato? */
+    public static function temaCompleto(?Tenant $tenant): bool
+    {
+        return (bool) $tenant?->tema_completo && self::esHex($tenant->color_primario);
+    }
+
+    /**
+     * Colores del tema completo, derivados del primario. Los textos son
+     * blancos o casi negros según qué se lea mejor sobre el fondo; tarjetas y
+     * bordes son el fondo mezclado un poco con ese color de texto.
+     * El acento (botones, menú activo) es el secundario o, si no hay, el color
+     * del texto: un botón del mismo color del fondo no se vería.
+     *
+     * @return array<string, string> nombre => #hex
+     */
+    public static function tema(?Tenant $tenant): array
+    {
+        if (! self::temaCompleto($tenant)) {
+            return [];
+        }
+
+        $fondo = strtolower($tenant->color_primario);
+        $texto = self::textoSobre($fondo);
+        $acento = self::esHex($tenant->color_secundario) && self::contraste($tenant->color_secundario, $fondo) >= 3
+            ? strtolower($tenant->color_secundario)
+            : $texto;
+
+        return [
+            'fondo' => $fondo,
+            'superficie' => self::mezclar($fondo, $texto, 0.06),
+            'superficie-2' => self::mezclar($fondo, $texto, 0.11),
+            'borde' => self::mezclar($fondo, $texto, 0.2),
+            'texto' => $texto,
+            'texto-2' => self::mezclar($texto, $fondo, 0.28),
+            'texto-3' => self::mezclar($texto, $fondo, 0.45),
+            'acento' => $acento,
+            // Acento = texto (sin secundario): encima va el color del fondo
+            'acento-texto' => $acento === $texto ? $fondo : self::textoSobre($acento),
+        ];
+    }
+
+    /** $a llevado hacia $b en proporción $t (0 = $a, 1 = $b). */
+    public static function mezclar(string $a, string $b, float $t): string
+    {
+        $ca = self::rgb($a);
+        $cb = self::rgb($b);
+
+        return sprintf('#%02x%02x%02x', ...array_map(
+            fn ($x, $y) => (int) round($x + ($y - $x) * $t),
+            $ca, $cb,
+        ));
     }
 }

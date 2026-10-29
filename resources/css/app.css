@@ -22,3 +22,186 @@
     --marca-sec: 15 23 42;
     --marca-sec-texto: 255 255 255;
 }
+
+/*
+ * TEMA COMPLETO DEL CANDIDATO (html.tema-marca)
+ *
+ * Con "tema completo" activo, <x-marca> define --tema-* (App\Support\Marca::tema)
+ * y el layout pone la clase tema-marca en <html>. Estas reglas cambian los
+ * neutros (blanco, gray, slate) por los colores del candidato sin tocar las
+ * vistas. Van después de las utilidades y con .tema-marca delante para ganarles.
+ *
+ * Si usas una clase neutra nueva en una vista y no cambia con el tema,
+ * agrégala aquí. Los colores de estado (emerald, rose, amber...) no se tocan.
+ */
+html.tema-marca {
+    color-scheme: dark light;
+}
+
+/* Fondo de la página */
+.tema-marca body {
+    background: rgb(var(--tema-fondo)) !important;
+    color: rgb(var(--tema-texto));
+}
+
+/* Bordes por defecto (border sin color): especificidad 0 para no pisar los de estado */
+:where(.tema-marca) *,
+:where(.tema-marca) ::before,
+:where(.tema-marca) ::after {
+    border-color: rgb(var(--tema-borde));
+}
+
+/* Tarjetas y paneles */
+.tema-marca .bg-white,
+.tema-marca .bg-white\/80,
+.tema-marca .bg-white\/90,
+.tema-marca .bg-white\/70 {
+    background-color: rgb(var(--tema-superficie));
+}
+
+/* Zonas suaves: cabeceras de tabla, cajas de ayuda, filas al pasar el mouse */
+.tema-marca .bg-gray-50,
+.tema-marca .bg-gray-100,
+.tema-marca .bg-slate-50,
+.tema-marca .bg-slate-100,
+.tema-marca .bg-indigo-50,
+.tema-marca .bg-indigo-100,
+.tema-marca .hover\:bg-gray-50:hover,
+.tema-marca .hover\:bg-gray-100:hover,
+.tema-marca .hover\:bg-slate-50:hover,
+.tema-marca .hover\:bg-slate-100:hover,
+.tema-marca .hover\:bg-indigo-50:hover,
+.tema-marca .focus\:bg-gray-100:focus {
+    background-color: rgb(var(--tema-superficie-2));
+}
+
+/* Textos */
+.tema-marca .text-black,
+.tema-marca .text-gray-900,
+.tema-marca .text-gray-800,
+.tema-marca .text-gray-700,
+.tema-marca .text-slate-900,
+.tema-marca .text-slate-800,
+.tema-marca .text-slate-700,
+.tema-marca .hover\:text-black:hover,
+.tema-marca .hover\:text-gray-900:hover,
+.tema-marca .hover\:text-gray-700:hover,
+.tema-marca .hover\:text-slate-900:hover,
+.tema-marca .hover\:text-slate-700:hover {
+    color: rgb(var(--tema-texto));
+}
+
+.tema-marca .text-gray-600,
+.tema-marca .text-gray-500,
+.tema-marca .text-slate-600,
+.tema-marca .text-slate-500,
+.tema-marca .hover\:text-gray-500:hover {
+    color: rgb(var(--tema-texto-2));
+}
+
+.tema-marca .text-gray-400,
+.tema-marca .text-slate-400,
+.tema-marca .text-slate-300 {
+    color: rgb(var(--tema-texto-3));
+}
+
+/* Enlaces y textos de marca: con fondo del color del candidato no se verían */
+.tema-marca .text-indigo-500,
+.tema-marca .text-indigo-600,
+.tema-marca .text-indigo-700,
+.tema-marca .text-indigo-800,
+.tema-marca .text-indigo-900,
+.tema-marca .hover\:text-indigo-700:hover,
+.tema-marca .hover\:text-indigo-800:hover {
+    color: rgb(var(--tema-acento));
+}
+
+/* Bordes neutros explícitos */
+.tema-marca .border-gray-100,
+.tema-marca .border-gray-200,
+.tema-marca .border-gray-300,
+.tema-marca .border-slate-100,
+.tema-marca .border-slate-200,
+.tema-marca .border-slate-300,
+.tema-marca .border-indigo-100,
+.tema-marca .border-indigo-200,
+.tema-marca .hover\:border-gray-300:hover,
+.tema-marca .divide-y > :not([hidden]) ~ :not([hidden]),
+.tema-marca .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.tema-marca .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+.tema-marca .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.tema-marca .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgb(var(--tema-borde));
+}
+
+/* Botones principales y menú activo: el acento (secundario o el color del texto) */
+.tema-marca .bg-indigo-500,
+.tema-marca .bg-indigo-600,
+.tema-marca .bg-indigo-700,
+.tema-marca .bg-slate-800,
+.tema-marca .bg-slate-900,
+.tema-marca .bg-gray-800,
+.tema-marca .bg-gray-900,
+.tema-marca .bg-black {
+    background-color: rgb(var(--tema-acento));
+    color: rgb(var(--tema-acento-texto));
+}
+
+.tema-marca .hover\:bg-indigo-700:hover,
+.tema-marca .hover\:bg-indigo-500:hover,
+.tema-marca .hover\:bg-slate-800:hover,
+.tema-marca .hover\:bg-slate-900:hover,
+.tema-marca .hover\:bg-gray-700:hover,
+.tema-marca .hover\:bg-black:hover {
+    background-color: rgb(var(--tema-acento) / 0.85);
+    color: rgb(var(--tema-acento-texto));
+}
+
+.tema-marca :is(.bg-indigo-500, .bg-indigo-600, .bg-indigo-700, .bg-slate-800, .bg-slate-900, .bg-gray-800, .bg-gray-900, .bg-black) :is(.text-white, .text-white\/80, .text-slate-300, .text-slate-400) {
+    color: rgb(var(--tema-acento-texto));
+}
+
+/* Formularios (plugin @tailwindcss/forms los pinta blancos) */
+.tema-marca :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]), select, textarea) {
+    background-color: rgb(var(--tema-superficie-2));
+    color: rgb(var(--tema-texto));
+    border-color: rgb(var(--tema-borde));
+}
+
+.tema-marca :is(input, textarea)::placeholder {
+    color: rgb(var(--tema-texto-3));
+}
+
+.tema-marca select option {
+    background-color: rgb(var(--tema-superficie));
+    color: rgb(var(--tema-texto));
+}
+
+.tema-marca :is(input[type="checkbox"], input[type="radio"]) {
+    background-color: rgb(var(--tema-superficie-2));
+    border-color: rgb(var(--tema-borde));
+}
+
+.tema-marca :is(input[type="checkbox"], input[type="radio"]):checked {
+    background-color: rgb(var(--tema-acento));
+}
+
+.tema-marca input[type="file"] {
+    color: rgb(var(--tema-texto-2));
+}
+
+/* Leaflet: los popups y tooltips del mapa siguen claros para leerse sobre el mapa */
+.tema-marca .leaflet-tooltip,
+.tema-marca .leaflet-popup-content-wrapper {
+    color: #111827;
+}
+
+/* Cajas de estado claras (verde, rojo, ámbar...): adentro el texto neutro vuelve a ser oscuro */
+.tema-marca :is(.bg-emerald-50, .bg-emerald-100, .bg-rose-50, .bg-rose-100, .bg-amber-50, .bg-amber-100, .bg-sky-50, .bg-green-50, .bg-green-100, .bg-red-50, .bg-red-100, .bg-yellow-50, .bg-blue-50) :is(.text-black, .text-gray-900, .text-gray-800, .text-gray-700, .text-slate-900, .text-slate-800, .text-slate-700, .text-gray-600, .text-gray-500, .text-slate-600, .text-slate-500, .text-slate-400, .text-gray-400) {
+    color: #334155;
+}
+
+/* Resaltados semitransparentes (fila ganadora, fila elegida): tinte del acento, texto del tema */
+.tema-marca :is(.bg-emerald-50\/50, .bg-indigo-50\/50, .bg-slate-50\/50) {
+    background-color: rgb(var(--tema-acento) / 0.14);
+}
