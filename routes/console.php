@@ -13,3 +13,9 @@ Artisan::command('inspire', function () {
 Schedule::command('redes:sincronizar')
     ->dailyAt('06:00')
     ->withoutOverlapping();
+
+// Termina cada despliegue de Hostinger (migraciones, permisos, cachés, cola)
+// cuando llega un commit nuevo. Ver DespliegueAutomaticoCommand.
+Schedule::command('deploy:automatico')
+    ->everyMinute()
+    ->withoutOverlapping();

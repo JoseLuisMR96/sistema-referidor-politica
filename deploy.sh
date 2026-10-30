@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Pasos después de cada despliegue en Hostinger (el Git de Hostinger solo
-# baja el código y corre composer install). Correr por SSH desde la raíz:
+# Pasos después de cada despliegue en Hostinger. Normalmente NO hace falta
+# correrlo: la tarea programada deploy:automatico (cada minuto, vía el cron
+# schedule:run) hace lo mismo sola cuando llega un commit nuevo. Queda para
+# correrlo a mano si algo falla (ver storage/logs/despliegue.log):
 #
 #   cd ~/domains/voteusoft.com/public_html && bash deploy.sh
 #
