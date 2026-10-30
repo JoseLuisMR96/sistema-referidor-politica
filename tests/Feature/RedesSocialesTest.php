@@ -62,6 +62,8 @@ class RedesSocialesTest extends TestCase
 
     public function test_credenciales_se_guardan_cifradas_y_vacio_conserva(): void
     {
+        // Meta no extiende el token: se conserva el pegado
+        Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['message' => 'no']], 400)]);
         $admin = $this->usuario('Administrador');
 
         Livewire::actingAs($admin)
@@ -275,5 +277,51 @@ class RedesSocialesTest extends TestCase
     public function test_sin_permiso_no_ve_el_dashboard_de_redes(): void
     {
         $this->actingAs($this->usuario('Referidor', $this->camilo))->get('/dashboard/redes')->assertForbidden();
+    }
+
+    // --- Token de larga duración ---
+
+    public function test_al_guardar_un_token_se_extiende_a_60_dias(): void
+    {
+        Http::fake(['graph.facebook.com/*/oauth/access_token*' => Http::response([
+            'access_token' => 'token-largo', 'token_type' => 'bearer', 'expires_in' => 60 * 86400,
+        ])]);
+
+        Livewire::actingAs($this->usuario('Administrador'))
+            ->test(RedesIndex::class)
+            ->set('app_id', '123')
+            ->set('app_secret', 'secreto-app')
+            ->set('access_token', 'token-corto')
+            ->call('guardarCredenciales')
+            ->assertHasNoErrors();
+
+        $meta = Integracion::meta();
+        $this->assertSame('token-largo', $meta->credencial('access_token'));
+        $this->assertTrue(Carbon::parse($meta->credencial('token_vence'))->between(now()->addDays(59), now()->addDays(61)));
+
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'oauth/access_token')
+            && $r['grant_type'] === 'fb_exchange_token' && $r['fb_exchange_token'] === 'token-corto');
+    }
+
+    public function test_dashboard_avisa_si_el_token_vencio(): void
+    {
+        $this->configurarMeta();
+        $meta = Integracion::meta();
+        $meta->credenciales = array_merge($meta->credenciales, ['token_vence' => now()->subDay()->toIso8601String()]);
+        $meta->save();
+
+        Livewire::actingAs($this->usuario('Administrador'))
+            ->test(\App\Livewire\Dashboard\Redes::class)
+            ->assertSee('El token de Meta venció');
+    }
+
+    public function test_dashboard_avisa_si_meta_rechaza_el_token(): void
+    {
+        $this->configurarMeta();
+        RedCuenta::create(['red' => 'instagram', 'usuario' => 'henry', 'ultimo_error' => 'Meta respondió con error: Error validating access token: Session has expired']);
+
+        Livewire::actingAs($this->usuario('Administrador'))
+            ->test(\App\Livewire\Dashboard\Redes::class)
+            ->assertSee('Meta rechazó el token');
     }
 }

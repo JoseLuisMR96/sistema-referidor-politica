@@ -99,6 +99,9 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
 - **Credenciales globales:** viven en `integraciones` (proveedor `meta`), cifradas con el cast `encrypted:array`. Si se rota `APP_KEY`, hay que volver a cargarlas.
   - Se configuran en `/admin/redes`: solo usuarios globales con `redes.configurar`.
   - URL base y versión de la Graph API son configurables. Meta retira versiones viejas: si falla por versión, súbela ahí.
+- **Token de Meta:** al guardar un token nuevo en `/admin/redes`, `MetaGraphClient::extenderToken()` lo cambia por uno de **~60 días** (`fb_exchange_token`, con App ID y App Secret) y guarda `token_vence` en las credenciales.
+  - El del Graph API Explorer dura **horas**: ya pasó que se venció de un día para otro.
+  - El Dashboard de redes avisa cuando faltan 10 días o menos, si ya venció o si Meta rechaza el token.
 - **Cuentas del candidato:** [RedCuenta](app/Models/RedCuenta.php), por tenant. Su `access_token`, también cifrado, existe solo cuando el candidato da acceso.
 - **Qué mide [RedesSincronizador](app/Services/Redes/RedesSincronizador.php)** según el acceso:
   - **Instagram sin acceso:** Business Discovery con la cuenta IG profesional propia. El token debe tener `instagram_basic`, `instagram_manage_insights`, `pages_show_list`, `pages_read_engagement` y `business_management`; sin `instagram_manage_insights`, Meta responde el error #10. Solo funciona con cuentas profesionales y solo trae datos públicos: seguidores, publicaciones y me gusta/comentarios.
