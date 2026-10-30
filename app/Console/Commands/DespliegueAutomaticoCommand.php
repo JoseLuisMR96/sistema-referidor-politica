@@ -63,7 +63,11 @@ class DespliegueAutomaticoCommand extends Command
             ['package:discover', []],
             ['migrate', ['--force' => true]],
             ['db:seed', ['--class' => 'RolesYPermisosSeeder', '--force' => true]],
-            ['optimize:clear', []],
+            // No optimize:clear: también vacía la caché de la app (el precálculo del Histórico)
+            ['config:clear', []],
+            ['route:clear', []],
+            ['view:clear', []],
+            ['event:clear', []],
             ['config:cache', []],
             ['route:cache', []],
             ['view:cache', []],
