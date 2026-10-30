@@ -159,6 +159,7 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
     - Partido `0000` con candidato `996`/`997`/`998` = blanco, nulos y no marcados. Solo entran Senado y Cámara en circunscripción `0` y `1`.
     - De CANDIDATOS **nunca** se lee la cédula, solo nombre y apellido.
     - El preconteo (`mmvPRECONTEO…`) no se usa: el escrutinio es el oficial.
+    - **Presidencia 2026** usa el mismo formato y el mismo comando con `--vuelta=1|2`. El `Novedad*.csv` trae datos por mesa (participación, recuentos), no votos, y no se usa.
     - Queda fuera Nuevo Belén de Bajirá (Chocó), un municipio nuevo que no está en el catálogo ni en los mapas.
   - **2018 en adelante:** CSV "mesa a mesa" (`Resultados.csv`, una fila por puesto). Se carga con `php artisan historico:importar-archivo Resultados.csv --anio=2018 --vuelta=1` ([comando](app/Console/Commands/ImportarHistoricoArchivoCommand.php)) o desde la pantalla.
     - El importador suma los puestos por municipio y deja fuera consulados y circunscripciones especiales.
