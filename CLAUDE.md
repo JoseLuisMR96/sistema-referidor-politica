@@ -154,6 +154,12 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
     - El importador detecta la marca de orden de bytes (BOM) y convierte al vuelo con `convert.iconv`.
     - Solo entran Senado nacional y Cámara departamental: el filtro de circunscripción descarta indígenas, afro y CITREP.
     - Para cargar varios archivos, usa `--sin-precalcular` y al final corre `historico:precalcular`.
+  - **Congreso 2026 (formato "Estructuras Básicas"):** el escrutinio `MMV_9999.csv` (~10 GB, dentro de un zip) trae **solo códigos** separados por `;`, sin encabezado. Los nombres salen de los archivos básicos: DIVIPOL, PARTIDOS, CANDIDATOS y CORPORACION, de ancho fijo y en Latin-1.
+    - Se carga con `php -d memory_limit=6G artisan historico:importar-escrutinio <zip o csv> <carpeta básicos> --anio=2026` ([comando](app/Console/Commands/ImportarEscrutinioMmvCommand.php)). Lee directo del zip y suma por municipio mientras lee; tarda unos 5 minutos.
+    - Partido `0000` con candidato `996`/`997`/`998` = blanco, nulos y no marcados. Solo entran Senado y Cámara en circunscripción `0` y `1`.
+    - De CANDIDATOS **nunca** se lee la cédula, solo nombre y apellido.
+    - El preconteo (`mmvPRECONTEO…`) no se usa: el escrutinio es el oficial.
+    - Queda fuera Nuevo Belén de Bajirá (Chocó), un municipio nuevo que no está en el catálogo ni en los mapas.
   - **2018 en adelante:** CSV "mesa a mesa" (`Resultados.csv`, una fila por puesto). Se carga con `php artisan historico:importar-archivo Resultados.csv --anio=2018 --vuelta=1` ([comando](app/Console/Commands/ImportarHistoricoArchivoCommand.php)) o desde la pantalla.
     - El importador suma los puestos por municipio y deja fuera consulados y circunscripciones especiales.
     - "Código Municipio" de la Registraduría **no** es DANE: no lo mapees a `codigo_dane`.

@@ -330,4 +330,42 @@ class HistoricoElectoralTest extends TestCase
         $this->assertSame('JOSÉ MUÑOZ', DB::table('historico_electoral')->where('cargo', 'camara')->whereNotNull('candidato')->value('candidato'));
         $this->assertSame(7, $stats->contienda(2022, 'senado', null)[0]['votos']);
     }
+
+    public function test_escrutinio_con_codigos_formato_2026(): void
+    {
+        $dir = sys_get_temp_dir().'/basicos_'.uniqid();
+        mkdir($dir);
+        $ancho = fn (string $v, int $n) => str_pad(mb_convert_encoding($v, 'Windows-1252', 'UTF-8'), $n);
+
+        file_put_contents("$dir/CORPORACION_01.TXT", '001'.$ancho('SENADO', 200)."\r\n002".$ancho('CAMARA', 200)."\r\n007".$ancho('CITREP', 200)."\r\n");
+        file_put_contents("$dir/DIVIPOL_01.TXT", '52'.'001'.'00'.'01'.$ancho('META', 12).$ancho('VILLAVICENCIO', 30).$ancho('COLEGIO', 40)."0000000100000001000001\r\n");
+        file_put_contents("$dir/PARTIDOS_01.TXT", '00008'.$ancho('PARTIDO ÑANDÚ', 200)."\r\n");
+        // corp circ dep mun comuna partido cand pref nombre(50) apellido(50) cédula(15) género sorteo
+        file_put_contents("$dir/CANDIDATOS_01.TXT", '002'.'1'.'52'.'000'.'00'.'00008'.'101'.'1'.$ancho('JOSÉ', 50).$ancho('MUÑOZ', 50).$ancho('123456789', 15)."M01\r\n");
+
+        $l = fn ($corp, $circ, $partido, $cand, $votos) => "9999;52;001;001;01;000001;00;{$corp};{$circ};{$partido};{$cand};".str_pad((string) $votos, 8, '0', STR_PAD_LEFT).";\r\n";
+        $csv = "$dir/MMV_9999.csv";
+        file_put_contents($csv, implode('', [
+            $l('002', '1', '0008', '000', 40),
+            $l('002', '1', '0008', '101', 10),
+            $l('002', '1', '0008', '101', 5),   // otra mesa: se suma
+            $l('002', '1', '0000', '996', 3),   // blanco
+            $l('002', '1', '0000', '997', 9),   // nulos: fuera
+            $l('002', '4', '0008', '000', 50),  // indígenas: fuera
+            $l('007', '9', '0008', '000', 50),  // CITREP: fuera
+            $l('001', '0', '0008', '000', 0),   // cero votos: fuera
+            $l('001', '0', '0008', '000', 7),
+        ]));
+
+        $this->artisan('historico:importar-escrutinio', ['mmv' => $csv, 'basicos' => $dir, '--anio' => 2026, '--sin-precalcular' => true])
+            ->assertSuccessful();
+
+        $stats = app(HistoricoElectoralStats::class);
+        $camara = $stats->contienda(2026, 'camara', $this->meta->id);
+        $this->assertSame([['PARTIDO ÑANDÚ', 55], ['VOTO EN BLANCO', 3]], array_map(fn ($c) => [$c['partido'], $c['votos']], $camara));
+        $this->assertSame('JOSÉ MUÑOZ', DB::table('historico_electoral')->where('cargo', 'camara')->whereNotNull('candidato')->value('candidato'));
+        $this->assertSame(7, $stats->contienda(2026, 'senado', null)[0]['votos']);
+        // La cédula del archivo de candidatos nunca llega a la base
+        $this->assertSame(0, DB::table('historico_electoral')->where('candidato', 'like', '%123456789%')->count());
+    }
 }
