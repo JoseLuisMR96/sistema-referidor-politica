@@ -14,12 +14,14 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# El Git de Hostinger también corre composer install (con dependencias de
-# desarrollo) al recibir un push. Si la caché de paquetes queda de esa
-# instalación, Laravel busca clases que --no-dev ya quitó y responde 500.
+# El Git de Hostinger corre su propio composer install (con dependencias de
+# desarrollo) en cada push. Instalamos igual que él: si aquí se usara
+# --no-dev, cada despliegue quitaría paquetes que la caché de Hostinger acaba
+# de registrar (p. ej. laravel-lang) y la app respondería 500 unos segundos.
+# vendor/ no es accesible desde la web (.htaccess de la raíz).
 rm -f bootstrap/cache/packages.php bootstrap/cache/services.php bootstrap/cache/config.php
 
-composer install --no-dev --optimize-autoloader --no-interaction
+composer install --optimize-autoloader --no-interaction
 php artisan package:discover
 
 php artisan migrate --force
