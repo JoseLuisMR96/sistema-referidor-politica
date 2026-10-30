@@ -32,7 +32,8 @@ php artisan db:seed --class=RolesYPermisosSeeder --force
 # Enlace public/storage (imágenes de pagos y similares)
 [ -e public/storage ] || php artisan storage:link
 
-php artisan optimize:clear
+# No optimize:clear: también vaciaría la caché de la app (precálculo del Histórico)
+php artisan config:clear && php artisan route:clear && php artisan view:clear && php artisan event:clear
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
