@@ -227,6 +227,18 @@ class ImportadorHistorico
         return $resumen;
     }
 
+    // Nulos y no marcados, también con basura al final ("VOTOS NULOS N")
+    private function esNoCandidato(string $normalizado): bool
+    {
+        foreach (self::NO_CANDIDATOS as $nc) {
+            if ($normalizado === $nc || str_starts_with($normalizado, $nc.' ')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Partido y candidato limpios, o null si la fila no es de un candidato ni
      * lista (nulos, no marcados).
@@ -235,6 +247,10 @@ class ImportadorHistorico
      */
     private function nombres(string $partido, string $candidato, string $codCandidato): ?array
     {
+        // 2022: "VOTOS NULOS<tabuladores>N": se colapsan los espacios raros
+        $partido = trim(preg_replace('/\s+/u', ' ', $partido));
+        $candidato = trim(preg_replace('/\s+/u', ' ', $candidato));
+
         $normPartido = HistoricoElectoralStats::normalizar($partido);
         $normCandidato = HistoricoElectoralStats::normalizar($candidato);
 
@@ -242,7 +258,7 @@ class ImportadorHistorico
             [$partido, $normPartido, $candidato, $normCandidato] = [$candidato, $normCandidato, '', ''];
         }
 
-        if ($normPartido === '' || in_array($normPartido, self::NO_CANDIDATOS, true) || in_array($normCandidato, self::NO_CANDIDATOS, true)) {
+        if ($normPartido === '' || $this->esNoCandidato($normPartido) || $this->esNoCandidato($normCandidato)) {
             return null;
         }
 
