@@ -14,7 +14,7 @@ use Illuminate\Console\Command;
  *   php artisan historico:importar-escrutinio "ruta/mmvESCRUTINIOCongreso2026.zip" "ruta/ArchivosBasicos..." --anio=2026
  *
  * - Lee el CSV directo del zip (descomprimido son ~10 GB) y suma por municipio.
- * - Solo Senado y Cámara en circunscripción nacional (0) y departamental (1):
+ * - Presidencia (con --vuelta), Senado y Cámara, en circunscripción nacional (0) y departamental (1):
  *   fuera indígenas, afro, CITREP, consultas y consulados.
  * - Partido 0000 con candidato 996/997/998 = blanco / nulos / no marcados.
  * - De CANDIDATOS solo se usan nombre y apellido: la cédula no se lee.
@@ -25,6 +25,7 @@ class ImportarEscrutinioMmvCommand extends Command
         {mmv : MMV_9999.csv o el zip que lo contiene}
         {basicos : Carpeta con los archivos básicos (DIVIPOL, PARTIDOS, CANDIDATOS, CORPORACION)}
         {--anio=2026 : Año de la elección}
+        {--vuelta=1 : Vuelta (presidencia: 1 o 2)}
         {--sin-precalcular : No llenar la caché al final}';
 
     protected $description = 'Importa el escrutinio mesa a mesa con códigos (formato Registraduría 2026)';
@@ -133,7 +134,7 @@ class ImportarEscrutinioMmvCommand extends Command
                 }
             })();
 
-            $total = $importador->guardar($filas, $anio, null, $total);
+            $total = $importador->guardar($filas, $anio, null, $total, (int) $this->option('vuelta'));
             $this->line(sprintf('  %-20s %s filas', $nombreDep, number_format($total['insertadas'], 0, ',', '.')));
         }
 
@@ -198,13 +199,15 @@ class ImportarEscrutinioMmvCommand extends Command
         fclose($f);
     }
 
-    /** código (3) => cargo; solo Senado y Cámara. */
+    /** código (3) => cargo; solo Presidencia, Senado y Cámara. */
     private function corporaciones(string $carpeta): array
     {
         $out = [];
         foreach ($this->lineas($this->archivo($carpeta, 'CORPORACION')) as $l) {
             $nombre = trim(substr($l, 3));
-            if (str_contains($nombre, 'SENADO')) {
+            if (str_contains($nombre, 'PRESIDEN')) {
+                $out[substr($l, 0, 3)] = 'presidencia';
+            } elseif (str_contains($nombre, 'SENADO')) {
                 $out[substr($l, 0, 3)] = 'senado';
             } elseif (str_contains($nombre, 'CAMARA') || str_contains($nombre, 'CÁMARA')) {
                 $out[substr($l, 0, 3)] = 'camara';
