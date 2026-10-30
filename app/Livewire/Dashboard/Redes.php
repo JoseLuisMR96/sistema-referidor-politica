@@ -34,9 +34,14 @@ class Redes extends Component
     // ¿Alguna cuenta del candidato tiene su token? Sin eso no hay comentarios
     public bool $hayTokenCandidato = false;
 
+    // Aviso del token de Meta (vencido, por vencer o rechazado)
+    public ?string $avisoToken = null;
+
     public function mount(RedesStats $stats): void
     {
         abort_unless(auth()->user()->can('redes.ver'), 403);
+
+        $this->avisoToken = $this->avisoToken();
 
         $contexto = app(TenantContext::class);
         $this->esTodos = $contexto->esTodos();
@@ -56,6 +61,22 @@ class Redes extends Component
             ->where('tipo', RedCuenta::TIPO_PROPIA)
             ->whereNotNull('access_token')
             ->exists();
+    }
+
+    private function avisoToken(): ?string
+    {
+        $estado = (new \App\Services\Redes\MetaGraphClient)->tokenPorVencer(10);
+
+        if ($estado && $estado['vencido']) {
+            return 'El token de Meta venció el '.$estado['vence']->locale('es')->isoFormat('D [de] MMMM').': no se están tomando las fotos diarias de seguidores.';
+        }
+        if ($estado) {
+            return "El token de Meta vence en {$estado['dias']} días (".$estado['vence']->locale('es')->isoFormat('D [de] MMMM').'). Renuévalo para no perder días de seguimiento.';
+        }
+
+        $rechazado = RedCuenta::query()->where('ultimo_error', 'like', '%access token%')->exists();
+
+        return $rechazado ? 'Meta rechazó el token (venció o se cambió la clave): no se están tomando las fotos diarias de seguidores.' : null;
     }
 
     public function render()

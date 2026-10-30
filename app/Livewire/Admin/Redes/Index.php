@@ -102,6 +102,7 @@ class Index extends Component
 
         $meta = Integracion::meta();
         $actual = $meta->credenciales ?? [];
+        $tokenNuevo = trim($this->access_token) !== '';
 
         $meta->credenciales = [
             'app_id' => $this->app_id,
@@ -110,13 +111,33 @@ class Index extends Component
             'graph_url' => rtrim($this->graph_url, '/'),
             'graph_version' => $this->graph_version,
             'ig_user_id' => $this->ig_user_id,
-            'access_token' => $this->access_token !== '' ? $this->access_token : ($actual['access_token'] ?? null),
+            'access_token' => $tokenNuevo ? trim($this->access_token) : ($actual['access_token'] ?? null),
+            'token_vence' => $tokenNuevo ? null : ($actual['token_vence'] ?? null),
         ];
         $meta->activo = true;
         $meta->save();
 
+        $mensaje = 'Credenciales de Meta guardadas.';
+
+        // Token nuevo: se cambia solo por uno de ~60 días (el del Explorer dura horas)
+        if ($tokenNuevo) {
+            try {
+                $largo = (new MetaGraphClient($meta))->extenderToken(trim($this->access_token));
+                $meta->credenciales = array_merge($meta->credenciales, [
+                    'access_token' => $largo['token'],
+                    'token_vence' => $largo['vence']?->toIso8601String(),
+                ]);
+                $meta->save();
+                $mensaje .= $largo['vence']
+                    ? ' El token se extendió y vence el '.$largo['vence']->locale('es')->isoFormat('D [de] MMMM [de] YYYY').'.'
+                    : ' El token se extendió y no tiene fecha de vencimiento.';
+            } catch (\Throwable $e) {
+                $mensaje .= ' Ojo: no se pudo extender el token ('.$e->getMessage().'). Quedó el que pegaste, que puede vencer en horas.';
+            }
+        }
+
         $this->reset(['app_secret', 'access_token']);
-        session()->flash('success', 'Credenciales de Meta guardadas.');
+        session()->flash('success', $mensaje);
     }
 
     public function probarConexion(): void
@@ -348,6 +369,7 @@ class Index extends Component
             'esGlobal' => auth()->user()->esGlobal(),
             'secretoGuardado' => $this->enmascarar($meta->credencial('app_secret')),
             'tokenGuardado' => $this->enmascarar($meta->credencial('access_token')),
+            'tokenVence' => $meta->credencial('token_vence') ? \Illuminate\Support\Carbon::parse($meta->credencial('token_vence')) : null,
             'iaGuardada' => $this->enmascarar(
                 Integracion::query()->where('proveedor', Integracion::ANTHROPIC)->first()?->credencial('api_key')
             ),

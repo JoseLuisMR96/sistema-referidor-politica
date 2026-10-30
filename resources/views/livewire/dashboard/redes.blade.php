@@ -13,6 +13,18 @@
 </x-slot>
 
 <div class="space-y-6">
+    @if ($avisoToken)
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <span class="font-semibold">{{ $avisoToken }}</span>
+            Genera un token en el Graph API Explorer de Meta y pégalo en
+            @can('redes.configurar')
+                <a href="{{ route('redes.index') }}" class="underline font-semibold">Configuración → Redes sociales</a>:
+            @else
+                Configuración → Redes sociales (pídeselo a un administrador):
+            @endcan
+            el sistema lo extiende solo a 60 días.
+        </div>
+    @endif
     <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
         Seguidores e interacciones no son votos: úsalos como tendencia. Los datos se actualizan a diario a las 06:00
         y el cambio semanal aparece cuando hay al menos 7 días de historia.

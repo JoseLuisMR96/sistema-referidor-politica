@@ -69,7 +69,19 @@
                             <input type="password" wire:model="access_token" autocomplete="new-password"
                                 class="mt-1 w-full rounded-md border-gray-300 font-mono"
                                 placeholder="{{ $tokenGuardado ? "Guardado: {$tokenGuardado} (vacío = conservar)" : '' }}" />
-                            <div class="text-xs text-gray-500 mt-1">Token de usuario (ampliado a 60 días) con: instagram_basic, instagram_manage_insights, pages_show_list, pages_read_engagement y business_management. Sin instagram_manage_insights, Meta rechaza la consulta de otras cuentas (error #10).</div>
+                            <div class="text-xs text-gray-500 mt-1">
+                                Pega el token que genera el Graph API Explorer: al guardar, el sistema lo cambia solo por uno de 60 días.
+                                Permisos: instagram_basic, instagram_manage_insights, pages_show_list, pages_read_engagement y business_management.
+                                Sin instagram_manage_insights, Meta rechaza la consulta de otras cuentas (error #10).
+                            </div>
+                            @if ($tokenVence)
+                                <div class="mt-1 text-xs font-semibold {{ $tokenVence->isPast() ? 'text-rose-600' : ($tokenVence->lte(now()->addDays(10)) ? 'text-amber-600' : 'text-emerald-700') }}">
+                                    {{ $tokenVence->isPast() ? 'El token venció el' : 'El token vence el' }}
+                                    {{ $tokenVence->locale('es')->isoFormat('D [de] MMMM [de] YYYY') }}
+                                </div>
+                            @elseif ($tokenGuardado)
+                                <div class="mt-1 text-xs text-amber-600">No se sabe cuándo vence el token guardado: pega uno nuevo para extenderlo a 60 días.</div>
+                            @endif
                             @error('access_token') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
                         </div>
                     </div>
