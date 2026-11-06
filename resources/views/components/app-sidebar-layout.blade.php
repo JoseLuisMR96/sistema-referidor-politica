@@ -136,6 +136,12 @@
                             Histórico electoral
                         </x-sidebar-link>
                     @endcan
+
+                    @can('historico.ver')
+                        <x-sidebar-link route="dashboard.analisis" icon="lightbulb">
+                            Análisis electoral
+                        </x-sidebar-link>
+                    @endcan
                 @endcanany
 
                 @canany(['registros.ver_todos', 'importados.ver'])

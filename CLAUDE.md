@@ -179,6 +179,21 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
 - **Vuelta:** columna `historico_electoral.vuelta` (1 por defecto). `HistoricoElectoralStats::$vuelta` filtra todas las consultas a través de `tabla()`.
 - **Corporaciones (listas):** asamblea, concejo, JAL y Congreso se agrupan por **partido** (lista + voto preferente). Las curules son los elegidos del partido.
 
+## Análisis electoral
+
+`/dashboard/analisis` ([Analisis](app/Livewire/Dashboard/Analisis.php), permiso `historico.ver`) da lecturas sobre `historico_electoral` para planear campaña. Los cálculos están en [AnalisisElectoral](app/Services/Historico/AnalisisElectoral.php), con la misma versión de caché del Histórico.
+
+- **Secciones:**
+  1. **Fortines:** % y votos de un partido por municipio y año, cambio entre elecciones y dónde ganó.
+  2. **Tamaño de los municipios:** potencial electoral, peso en el departamento, mujeres, mesas y participación aproximada (votos válidos sobre potencial).
+  3. **Tendencia** (izquierda, centro o derecha, con tabla editable): pendiente.
+  4. **Alcaldes y gobernación:** el alcalde en funciones (elegido 4 años antes) frente a lo que sacó cada candidato a gobernación en su municipio. Pendiente. Se presenta como **coincidencia estadística**, no como prueba de participación en política.
+- **Partidos entre años:** [Partidos::clave()](app/Support/Partidos.php) agrupa las variantes de nombre ("Partido Social de Unidad Nacional" → "Partido de la U").
+  - **Coaliciones aparte:** nombre con guion, que empieza por "Coalición" o que menciona dos o más partidos conocidos.
+  - **Siglas (ASI, AICO, MAIS):** solo sirven para detectar coaliciones. Si no, "Así Ganamos Todos" caería en el ASI.
+- **Potencial electoral:** `municipios.potencial_electoral` (y mujeres, hombres, mesas, año) se carga con `php artisan municipios:potencial <DIVIPOL.TXT> --anio=2026` ([comando](app/Console/Commands/CargarPotencialElectoralCommand.php)). El DIVIPOL viene en los archivos básicos de la Registraduría.
+  - **Ojo:** en el archivo de 2026 la primera columna de potencial es la de **mujeres**, aunque el PDF diga "hombres, mujeres". Así da 51 % de mujeres, como el censo real.
+
 ## Modelo de dominio
 
 ### Dos sistemas de referidos independientes (no los mezcles)

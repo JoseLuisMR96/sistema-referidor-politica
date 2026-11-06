@@ -18,6 +18,7 @@ use App\Livewire\Admin\Referrers\Edit as ReferrersEdit;
 use App\Livewire\Admin\Referrers\Index as ReferrersIndex;
 use App\Livewire\Dashboard\Redes as DashboardRedes;
 use App\Livewire\Dashboard\Historico as DashboardHistorico;
+use App\Livewire\Dashboard\Analisis as DashboardAnalisis;
 use App\Livewire\Dashboard\Stats;
 use App\Livewire\ImportedPeople\Index as ImportedPeopleIndex;
 use App\Livewire\ImportedPeople\Show as ImportedPeopleShow;
@@ -82,6 +83,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard/historico', DashboardHistorico::class)
         ->middleware('permission:historico.ver')
         ->name('dashboard.historico');
+
+    // Análisis electoral (lecturas sobre el histórico)
+    Route::get('/dashboard/analisis', DashboardAnalisis::class)
+        ->middleware('permission:historico.ver')
+        ->name('dashboard.analisis');
 
     // Perfil (Breeze)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
