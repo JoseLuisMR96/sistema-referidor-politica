@@ -389,6 +389,19 @@ class ImportadorHistorico
         };
     }
 
+    /**
+     * Departamento y municipio del catálogo a partir de los nombres de la
+     * Registraduría (mismas reglas de cruce que la importación).
+     *
+     * @return array{0:?int,1:?int}
+     */
+    public function resolverLugar(string $departamento, string $municipio): array
+    {
+        $this->cargarCatalogo();
+
+        return $this->lugar($departamento, $municipio, '');
+    }
+
     /** @return array{0:?int,1:?int} departamento_id y municipio_id */
     private function lugar(string $departamento, string $municipio, string $codigo): array
     {
