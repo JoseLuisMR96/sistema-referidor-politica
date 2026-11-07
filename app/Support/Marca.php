@@ -22,6 +22,11 @@ class Marca
      * Posición del color elegido = tono 600 (el de botones y enlaces).
      * Valor > 0: mezcla con blanco; < 0: con negro.
      */
+    /** Colores por defecto de la app (los de app.css): índigo 600 y slate 900. */
+    public const PRIMARIO_DEFECTO = '#4f46e5';
+
+    public const SECUNDARIO_DEFECTO = '#0f172a';
+
     private const TONOS = [
         50 => 0.95, 100 => 0.88, 200 => 0.75, 300 => 0.58, 400 => 0.35,
         500 => 0.15, 600 => 0.0, 700 => -0.15, 800 => -0.32, 900 => -0.48, 950 => -0.65,
@@ -97,7 +102,7 @@ class Marca
      */
     public static function css(?Tenant $tenant): string
     {
-        if (! $tenant) {
+        if (! self::usaColores($tenant)) {
             return '';
         }
 
@@ -121,10 +126,19 @@ class Marca
         return $vars ? ':root{'.implode('', $vars).'}' : '';
     }
 
+    /**
+     * ¿El candidato usa sus colores? Con la apariencia por defecto (usar_colores
+     * en false) sus colores quedan guardados pero rigen los de app.css.
+     */
+    public static function usaColores(?Tenant $tenant): bool
+    {
+        return $tenant !== null && $tenant->usar_colores !== false;
+    }
+
     /** ¿Pinta toda la app (fondo, tarjetas, textos) con el color del candidato? */
     public static function temaCompleto(?Tenant $tenant): bool
     {
-        return (bool) $tenant?->tema_completo && self::esHex($tenant->color_primario);
+        return self::usaColores($tenant) && (bool) $tenant->tema_completo && self::esHex($tenant->color_primario);
     }
 
     /**

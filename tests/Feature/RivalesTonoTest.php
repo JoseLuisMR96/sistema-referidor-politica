@@ -2,7 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Redes\Index as RedesIndex;
+use App\Livewire\Admin\Integraciones;
+use App\Livewire\Admin\Redes\Cuenta as RedesCuenta;
 use App\Models\Integracion;
 use App\Models\RedCuenta;
 use App\Models\RedMetrica;
@@ -100,18 +101,18 @@ class RivalesTonoTest extends TestCase
 
     public function test_rival_solo_en_instagram_y_con_nombre(): void
     {
-        $componente = Livewire::actingAs($this->admin($this->wilmar))->test(RedesIndex::class);
+        $componente = Livewire::actingAs($this->admin($this->wilmar))->test(RedesCuenta::class);
 
         $componente->set('tipo', 'rival')->set('red', 'facebook')->set('usuario', 'OtroCandidato')
-            ->set('etiqueta', 'Otro')->call('guardarCuenta')
+            ->set('etiqueta', 'Otro')->call('guardar')
             ->assertHasErrors(['red' => 'in']);
 
-        $componente->set('red', 'instagram')->set('etiqueta', '')->call('guardarCuenta')
+        $componente->set('red', 'instagram')->set('etiqueta', '')->call('guardar')
             ->assertHasErrors(['etiqueta' => 'required']);
 
         // Aunque llegue un token, un rival nunca lo guarda
         $componente->set('etiqueta', 'Juan Pérez')->set('usuario', 'juanperez')
-            ->set('cuenta_token', 'token-que-no-debe-quedar')->call('guardarCuenta')
+            ->set('cuenta_token', 'token-que-no-debe-quedar')->call('guardar')
             ->assertHasNoErrors();
 
         $rival = RedCuenta::where('usuario', 'juanperez')->sole();
@@ -255,7 +256,7 @@ class RivalesTonoTest extends TestCase
     public function test_la_api_key_de_anthropic_se_guarda_cifrada(): void
     {
         Livewire::actingAs($this->admin())
-            ->test(RedesIndex::class)
+            ->test(Integraciones::class)
             ->set('anthropic_key', 'sk-ant-api03-secreta-1234')
             ->call('guardarAnthropic')
             ->assertHasNoErrors();

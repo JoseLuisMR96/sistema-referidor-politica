@@ -442,71 +442,16 @@
             </div>
         </div>
 
-        {{-- Clasificación editable --}}
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
-                <div>
-                    <div class="text-lg font-extrabold text-slate-900">Ideología de los partidos</div>
-                    <div class="text-xs text-slate-500 max-w-2xl">
-                        Clasificación inicial tomada de Wikipedia y la prensa; es una aproximación.
-                        Aplica a todos los candidatos y años. Una coalición sin clasificar toma la ideología de sus partidos
-                        cuando todos están en el mismo bloque ("Inferida"); si no, y en los movimientos locales, hay que elegirla.
-                        @if ($tendencia['sin_clasificar'])
-                            Aquí hay {{ count($tendencia['sin_clasificar']) }} sin clasificar; van primero.
-                        @endif
-                    </div>
-                </div>
-                <label class="text-xs font-semibold text-slate-700">Buscar partido
-                    <input type="search" wire:model.live.debounce.400ms="buscarPartido" class="{{ $select }}" placeholder="Nombre…">
-                </label>
-            </div>
-
-            @unless ($this->puedeClasificar())
-                <div class="mb-3 text-xs text-slate-500">Solo un usuario global con permiso de importar el histórico puede cambiar la clasificación.</div>
-            @endunless
-
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
-                    <thead class="text-left text-xs uppercase tracking-wider text-slate-400">
-                        <tr>
-                            <th class="py-2 pr-4">Partido o coalición</th>
-                            <th class="py-2 px-3 text-right">Votos (todos los años)</th>
-                            <th class="py-2 px-3">Ideología</th>
-                            <th class="py-2 px-3">Nota</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y">
-                        @foreach ($clasificacion as $p)
-                            <tr wire:key="ideo-{{ md5($p['clave']) }}">
-                                <td class="py-2 pr-4 font-semibold text-slate-900">{{ $p['nombre'] }}</td>
-                                <td class="py-2 px-3 text-right tabular-nums">{{ $num($p['votos']) }}</td>
-                                <td class="py-2 px-3">
-                                    @if ($this->puedeClasificar())
-                                        <select class="rounded-lg border border-slate-300 px-2 py-1 text-sm bg-white"
-                                            wire:change="clasificar({{ \Illuminate\Support\Js::from($p['clave']) }}, $event.target.value)">
-                                            <option value="" @selected(! $p['ideologia'])>{{ $p['inferida'] ? 'Inferida: '.$ideologiasDef[$p['inferida']][0] : 'Sin clasificar' }}</option>
-                                            @foreach ($ideologiasDef as $valor => [$nombre])
-                                                <option value="{{ $valor }}" @selected($p['ideologia'] === $valor)>{{ $nombre }}</option>
-                                            @endforeach
-                                        </select>
-                                    @else
-                                        {{ $p['ideologia'] ? $ideologiasDef[$p['ideologia']][0] : ($p['inferida'] ? 'Inferida: '.$ideologiasDef[$p['inferida']][0] : 'Sin clasificar') }}
-                                    @endif
-                                </td>
-                                <td class="py-2 px-3 min-w-[16rem]">
-                                    @if ($this->puedeClasificar() && $p['ideologia'])
-                                        <input type="text" value="{{ $p['nota'] }}" maxlength="500" placeholder="Fuente o comentario"
-                                            class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm bg-white"
-                                            wire:change="anotar({{ \Illuminate\Support\Js::from($p['clave']) }}, $event.target.value)">
-                                    @else
-                                        <span class="text-xs text-slate-500">{{ $p['nota'] }}</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+        {{-- La clasificación se edita en Configuración → Ideología de los partidos --}}
+        <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 flex flex-wrap items-center justify-between gap-2">
+            <span>
+                Los bloques salen de la ideología de cada partido.
+                @if ($tendencia['sin_clasificar'])
+                    Aquí hay <b>{{ count($tendencia['sin_clasificar']) }}</b> partidos o coaliciones sin clasificar.
+                @endif
+            </span>
+            <a href="{{ route('ideologias.index', ['depto' => $departamentoId, 'cargo' => $cargo, 'estado' => 'sin_clasificar']) }}"
+                class="font-semibold text-indigo-700 hover:underline">Clasificar partidos →</a>
         </div>
     @endif
 

@@ -15,7 +15,7 @@
 </head>
 
 <body class="min-h-screen bg-gray-100 border-t-4 border-secundario">
-    @if (($tenantMarca ?? null)?->fondoUrl())
+    @if (($tenantMarca ?? null)?->fondoVisibleUrl())
         <div aria-hidden="true" class="pointer-events-none fixed inset-x-0 bottom-0 bg-no-repeat"
             style="z-index: 0; opacity: 0.25; aspect-ratio: {{ $tenantMarca->fondoProporcion() }}; max-height: 100vh; background-image: url('{{ $tenantMarca->fondoUrl() }}'); background-position: left bottom; background-size: cover;"></div>
     @endif

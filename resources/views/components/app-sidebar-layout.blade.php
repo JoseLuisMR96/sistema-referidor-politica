@@ -26,8 +26,9 @@
     <x-marca :tenant="$tenantActual" />
 </head>
 
-<body class="font-sans antialiased bg-gray-50 text-gray-800 border-t-4 border-secundario">
-    <div x-data="{ open: false }" class="min-h-screen flex">
+<body class="font-sans antialiased bg-gray-50 text-gray-800 border-t-4 border-secundario h-screen overflow-hidden">
+    {{-- Menú fijo a la izquierda; solo el contenido hace scroll --}}
+    <div x-data="{ open: false }" class="h-full flex">
 
         {{-- Overlay mobile --}}
         <div x-show="open" x-cloak @click="open=false" class="fixed inset-0 bg-black/40 z-30 lg:hidden"
@@ -35,11 +36,11 @@
 
         {{-- SIDEBAR --}}
         <aside :class="open ? 'translate-x-0' : '-translate-x-full'"
-            class="fixed inset-y-0 left-0 z-40 w-72 bg-white border-r shadow-sm
+            class="fixed inset-y-0 left-0 z-40 w-72 bg-white border-r shadow-sm flex flex-col
                transform transition-transform duration-200
-               lg:static lg:translate-x-0 lg:flex lg:flex-col">
+               lg:static lg:h-full lg:shrink-0 lg:translate-x-0">
             {{-- Brand --}}
-            <div class="h-16 flex items-center px-6 border-b">
+            <div class="h-16 shrink-0 flex items-center px-6 border-b">
                 @if ($tenantActual?->logoUrl())
                     <a href="{{ route('dashboard') }}" class="flex items-center gap-3 min-w-0">
                         <img src="{{ $tenantActual->logoUrl() }}" alt="Logo {{ $tenantActual->partido ?: $tenantActual->nombre }}"
@@ -114,7 +115,7 @@
                 $verCandidatos = $usuarioMenu->esGlobal() && $usuarioMenu->can('tenants.gestionar');
                 $tituloSeccion = 'text-xs uppercase tracking-wider text-gray-400 px-3 mb-2 mt-5 first:mt-0';
             @endphp
-            <nav class="flex-1 p-4 space-y-1 text-sm">
+            <nav class="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:thin] p-4 space-y-1 text-sm">
 
                 @canany(['dashboard.ver', 'redes.ver', 'historico.ver'])
                     <div class="{{ $tituloSeccion }}">Análisis</div>
@@ -194,20 +195,32 @@
                     --}}
                 @endcan
 
-                @if ($verCandidatos || $usuarioMenu->canAny(['redes.configurar', 'usuarios.ver']))
+                @if ($verCandidatos || $usuarioMenu->canAny(['redes.configurar', 'usuarios.ver', 'historico.ver']))
                     <div class="{{ $tituloSeccion }}">Configuración</div>
 
                     @if ($verCandidatos)
-                        <x-sidebar-link route="tenants.index" icon="flag">
+                        <x-sidebar-link route="tenants.index" pattern="tenants.*" icon="flag">
                             Candidatos
                         </x-sidebar-link>
                     @endif
 
                     @can('redes.configurar')
-                        <x-sidebar-link route="redes.index" icon="cog">
-                            Redes sociales
+                        <x-sidebar-link route="redes.index" pattern="redes.*" icon="share">
+                            Cuentas de redes
                         </x-sidebar-link>
                     @endcan
+
+                    @can('historico.ver')
+                        <x-sidebar-link route="ideologias.index" icon="scale">
+                            Ideología de partidos
+                        </x-sidebar-link>
+                    @endcan
+
+                    @if ($usuarioMenu->esGlobal() && $usuarioMenu->can('redes.configurar'))
+                        <x-sidebar-link route="integraciones.index" icon="cog">
+                            Integraciones
+                        </x-sidebar-link>
+                    @endif
 
                     @can('usuarios.ver')
                         <x-sidebar-link route="users.index" pattern="users.*" icon="users">
@@ -239,10 +252,10 @@
         </aside>
 
         {{-- MAIN --}}
-        <div class="flex-1 flex flex-col min-w-0">
+        <div class="flex-1 flex flex-col min-w-0 h-full">
 
             {{-- TOPBAR --}}
-            <header class="relative z-20 h-16 bg-white border-b flex items-center px-6 gap-4">
+            <header class="relative z-20 h-16 shrink-0 bg-white border-b flex items-center px-6 gap-4">
                 <button type="button" @click="open=!open"
                     class="lg:hidden h-10 w-10 rounded-lg border hover:bg-gray-50">
                     ☰
@@ -291,6 +304,9 @@
                 </div>
             </header>
 
+            {{-- Área con scroll: encabezado de la página y contenido --}}
+            <div id="contenido" class="flex-1 min-h-0 overflow-y-auto flex flex-col">
+
             {{-- PAGE HEADER --}}
             @if ($header)
                 <div class="relative z-10 bg-white border-b px-6 py-4">
@@ -299,7 +315,7 @@
             @endif
 
             {{-- Imagen de fondo del candidato (bandera, tigre...): decorativa, detrás de las tarjetas --}}
-            @if ($tenantActual?->fondoUrl())
+            @if ($tenantActual?->fondoVisibleUrl())
                 <div aria-hidden="true"
                     class="pointer-events-none fixed bottom-0 right-0 left-0 lg:left-72 bg-no-repeat"
                     style="z-index: 0; opacity: 0.18; aspect-ratio: {{ $tenantActual->fondoProporcion() }}; max-height: 100vh; background-image: url('{{ $tenantActual->fondoUrl() }}'); background-position: left bottom; background-size: cover;"></div>
@@ -315,6 +331,7 @@
 
                 {{ $slot }}
             </main>
+            </div>
         </div>
     </div>
 

@@ -18,7 +18,7 @@
             <span class="font-semibold">{{ $avisoToken }}</span>
             Genera un token en el Graph API Explorer de Meta y pégalo en
             @can('redes.configurar')
-                <a href="{{ route('redes.index') }}" class="underline font-semibold">Configuración → Redes sociales</a>:
+                <a href="{{ route('redes.index') }}" class="underline font-semibold">Configuración → Cuentas de redes</a>:
             @else
                 Configuración → Redes sociales (pídeselo a un administrador):
             @endcan
@@ -40,7 +40,7 @@
                     Ningún candidato tiene cuentas de redes registradas todavía.
                     @can('redes.configurar')
                         Elige un candidato en el menú y regístralas en
-                        <a href="{{ route('redes.index') }}" class="underline font-semibold text-indigo-700">Redes sociales</a>.
+                        <a href="{{ route('redes.index') }}" class="underline font-semibold text-indigo-700">Cuentas de redes</a>.
                     @endcan
                 </div>
             @else
@@ -85,7 +85,7 @@
         <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600">
             {{ $candidato }} todavía no tiene cuentas de Facebook o Instagram registradas.
             @can('redes.configurar')
-                Agrégalas en <a href="{{ route('redes.index') }}" class="underline font-semibold text-indigo-700">Redes sociales</a>
+                Agrégalas en <a href="{{ route('redes.index') }}" class="underline font-semibold text-indigo-700">Cuentas de redes</a>
                 y pulsa "Sincronizar" para ver aquí sus seguidores y su crecimiento.
             @else
                 Pídele a un administrador que las registre.
@@ -197,7 +197,7 @@
                 <div class="text-sm text-slate-600">
                     No hay rivales registrados.
                     @can('redes.configurar')
-                        Agrégalos en <a href="{{ route('redes.index') }}" class="underline font-semibold text-indigo-700">Redes sociales</a>
+                        Agrégalos en <a href="{{ route('redes.index') }}" class="underline font-semibold text-indigo-700">Cuentas de redes</a>
                         como "Rival (otro candidato)" con su usuario de Instagram.
                     @endcan
                 </div>

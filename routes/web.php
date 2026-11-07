@@ -7,8 +7,10 @@ use App\Http\Controllers\Exports\PublicRegistrationsExportController;
 use App\Http\Controllers\MarcaArchivoController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TenantSwitchController;
+use App\Livewire\Admin\Ideologias\Index as IdeologiasIndex;
+use App\Livewire\Admin\Integraciones;
+use App\Livewire\Admin\Redes\Cuenta as RedesCuenta;
 use App\Livewire\Admin\Redes\Index as RedesIndex;
-use App\Livewire\Admin\Tenants\Index as TenantsIndex;
 use App\Livewire\Admin\Referidores\Create as ReferidoresCreate;
 use App\Livewire\Admin\Referidores\Edit as ReferidoresEdit;
 use App\Livewire\Admin\Referidores\Index as ReferidoresIndex;
@@ -16,9 +18,11 @@ use App\Livewire\Admin\Referidores\Show as ReferidoresShow;
 use App\Livewire\Admin\Referrers\Create as ReferrersCreate;
 use App\Livewire\Admin\Referrers\Edit as ReferrersEdit;
 use App\Livewire\Admin\Referrers\Index as ReferrersIndex;
-use App\Livewire\Dashboard\Redes as DashboardRedes;
-use App\Livewire\Dashboard\Historico as DashboardHistorico;
+use App\Livewire\Admin\Tenants\Formulario as TenantsFormulario;
+use App\Livewire\Admin\Tenants\Index as TenantsIndex;
 use App\Livewire\Dashboard\Analisis as DashboardAnalisis;
+use App\Livewire\Dashboard\Historico as DashboardHistorico;
+use App\Livewire\Dashboard\Redes as DashboardRedes;
 use App\Livewire\Dashboard\Stats;
 use App\Livewire\ImportedPeople\Index as ImportedPeopleIndex;
 use App\Livewire\ImportedPeople\Show as ImportedPeopleShow;
@@ -43,7 +47,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get(
     '/',
-    fn() => auth()->check()
+    fn () => auth()->check()
         ? redirect()->route('dashboard')
         : redirect()->route('login')
 )->name('home');
@@ -163,7 +167,6 @@ Route::middleware(['auth'])->group(function () {
             ->name('referidores.export_referidos');
     });
 
-
     /*
     |----------------------------------------------------------------------
     | Registros (PublicRegistration)
@@ -214,9 +217,40 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:tenants.gestionar')
         ->name('tenants.index');
 
+    Route::get('/admin/tenants/crear', TenantsFormulario::class)
+        ->middleware('permission:tenants.gestionar')
+        ->name('tenants.create');
+
+    Route::get('/admin/tenants/{tenant}/editar', TenantsFormulario::class)
+        ->middleware('permission:tenants.gestionar')
+        ->name('tenants.edit');
+
+    /*
+    |----------------------------------------------------------------------
+    | Redes sociales, integraciones e ideología de los partidos
+    |----------------------------------------------------------------------
+    */
     Route::get('/admin/redes', RedesIndex::class)
         ->middleware('permission:redes.configurar')
         ->name('redes.index');
+
+    Route::get('/admin/redes/crear', RedesCuenta::class)
+        ->middleware('permission:redes.configurar')
+        ->name('redes.create');
+
+    // La cuenta se busca con el scope del tenant: la de otro candidato da 404
+    Route::get('/admin/redes/{cuenta}/editar', RedesCuenta::class)
+        ->middleware('permission:redes.configurar')
+        ->name('redes.edit');
+
+    // Credenciales globales (Meta, IA): el componente exige además usuario global
+    Route::get('/admin/integraciones', Integraciones::class)
+        ->middleware('permission:redes.configurar')
+        ->name('integraciones.index');
+
+    Route::get('/admin/ideologia', IdeologiasIndex::class)
+        ->middleware('permission:historico.ver')
+        ->name('ideologias.index');
 
     /*
     |----------------------------------------------------------------------
@@ -236,4 +270,4 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:usuarios.editar');
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';

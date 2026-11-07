@@ -125,7 +125,7 @@ class Analisis extends Component
     #[Url(as: 'op')]
     public string $ordenPuestos = 'votos';
 
-    /** Filtro de la tabla de clasificación de partidos */
+    /** Alianzas: filtro de la lista de partidos */
     public string $buscarPartido = '';
 
     public function mount(AnalisisElectoral $analisis): void
@@ -243,35 +243,6 @@ class Analisis extends Component
         }
     }
 
-    /** Editar la ideología de los partidos: solo usuarios globales (la tabla es de todos). */
-    public function puedeClasificar(): bool
-    {
-        $user = auth()->user();
-
-        return $user->esGlobal() && $user->can('historico.importar');
-    }
-
-    public function clasificar(string $clave, string $ideologia): void
-    {
-        abort_unless($this->puedeClasificar(), 403);
-
-        if ($ideologia === '') {
-            PartidoIdeologia::where('clave', $clave)->delete();
-
-            return;
-        }
-
-        abort_unless(array_key_exists($ideologia, PartidoIdeologia::IDEOLOGIAS) && mb_strlen($clave) <= 191, 422);
-        PartidoIdeologia::updateOrCreate(['clave' => $clave], ['ideologia' => $ideologia]);
-    }
-
-    public function anotar(string $clave, string $nota): void
-    {
-        abort_unless($this->puedeClasificar(), 403);
-
-        PartidoIdeologia::where('clave', $clave)->update(['nota' => mb_substr(trim($nota), 0, 500) ?: null]);
-    }
-
     public function render(AnalisisElectoral $analisis)
     {
         $departamento = Departamento::find($this->departamentoId);
@@ -281,7 +252,6 @@ class Analisis extends Component
         $fortines = null;
         $municipios = null;
         $tendencia = null;
-        $clasificacion = null;
         $alcaldes = null;
         $actuales = null;
         $plan = null;
@@ -299,13 +269,11 @@ class Analisis extends Component
         }
 
         if ($datos && $this->seccion === 'tendencia') {
-            $ideologias = PartidoIdeologia::query()->get()->keyBy('clave');
-            $tendencia = $analisis->tendencia($departamento->id, $this->cargo, $ideologias->map->ideologia->all());
+            $tendencia = $analisis->tendencia($departamento->id, $this->cargo, PartidoIdeologia::mapa());
             if (! in_array($this->anio, $tendencia['anios'], true)) {
                 $this->anio = $tendencia['ultimo'];
             }
             $mapa = $this->mapaTendencia($departamento, $tendencia);
-            $clasificacion = $this->clasificacion($datos['partidos'], $ideologias, $tendencia['inferidas']);
         }
 
         if ($departamento && $this->seccion === 'alcaldes') {
@@ -346,7 +314,6 @@ class Analisis extends Component
             'fortines' => $fortines,
             'municipios' => $municipios,
             'tendencia' => $tendencia,
-            'clasificacion' => $clasificacion,
             'alcaldes' => $alcaldes,
             'actuales' => $actuales,
             'plan' => $plan,
@@ -654,29 +621,6 @@ class Analisis extends Component
         usort($filas, fn ($a, $b) => $valor($b) <=> $valor($a));
 
         return $filas;
-    }
-
-    /**
-     * Partidos del departamento y cargo con su ideología, para editarla.
-     * Los sin clasificar van primero; luego, de más a menos votados.
-     */
-    private function clasificacion(array $partidos, $ideologias, array $inferidas): array
-    {
-        $buscar = HistoricoElectoralStats::normalizar(trim($this->buscarPartido));
-
-        return collect($partidos)
-            ->reject(fn ($p, $clave) => $clave === 'VOTO EN BLANCO')
-            ->filter(fn ($p, $clave) => $buscar === '' || str_contains(HistoricoElectoralStats::normalizar($p['nombre'].' '.$clave), $buscar))
-            ->map(fn ($p, $clave) => [
-                'clave' => $clave,
-                'nombre' => $p['nombre'],
-                'votos' => $p['votos'],
-                'ideologia' => $ideologias[$clave]->ideologia ?? null,
-                'nota' => $ideologias[$clave]->nota ?? null,
-                'inferida' => $inferidas[$clave] ?? null,
-            ])
-            ->sortBy(fn ($p) => [$p['ideologia'] === null ? 0 : 1, -$p['votos']])
-            ->take(60)->values()->all();
     }
 
     /** Color de la ideología del ganador del año elegido. */

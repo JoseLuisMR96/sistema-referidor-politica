@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\CargoEnum;
-use App\Livewire\Admin\Tenants\Index as TenantsIndex;
+use App\Livewire\Admin\Tenants\Formulario as TenantsFormulario;
 use App\Models\Referrer;
 use App\Models\Tenant;
 use App\Models\User;
@@ -82,7 +82,7 @@ class MarcaCandidatoTest extends TestCase
     public function test_guarda_la_identidad_visual_con_logo_y_foto(): void
     {
         Livewire::actingAs($this->admin())
-            ->test(TenantsIndex::class)
+            ->test(TenantsFormulario::class)
             ->set('nombre', 'Candidato Demo')
             ->set('cargo', 'senado')
             ->set('partido', 'Partido Demo')
@@ -104,7 +104,7 @@ class MarcaCandidatoTest extends TestCase
     public function test_rechaza_colores_invalidos_y_svg(): void
     {
         Livewire::actingAs($this->admin())
-            ->test(TenantsIndex::class)
+            ->test(TenantsFormulario::class)
             ->set('nombre', 'X Candidato')
             ->set('cargo', 'senado')
             ->set('color_primario', 'rojo')
@@ -116,12 +116,12 @@ class MarcaCandidatoTest extends TestCase
     public function test_cambiar_el_logo_borra_el_anterior(): void
     {
         $t = $this->candidato();
-        $componente = Livewire::actingAs($this->admin())->test(TenantsIndex::class);
+        $editar = fn () => Livewire::actingAs($this->admin())->test(TenantsFormulario::class, ['tenant' => $t->fresh()]);
 
-        $componente->call('editar', $t->id)->set('logo', UploadedFile::fake()->image('a.png'))->call('guardar');
+        $editar()->set('logo', UploadedFile::fake()->image('a.png'))->call('guardar')->assertRedirect(route('tenants.index'));
         $primero = $t->fresh()->logo_path;
 
-        $componente->call('editar', $t->id)->set('logo', UploadedFile::fake()->image('b.png'))->call('guardar');
+        $editar()->set('logo', UploadedFile::fake()->image('b.png'))->call('guardar');
 
         Storage::disk('public')->assertMissing($primero);
         Storage::disk('public')->assertExists($t->fresh()->logo_path);
@@ -208,5 +208,76 @@ class MarcaCandidatoTest extends TestCase
 
         $this->assertSame('#111827', $tema['texto']);
         $this->assertGreaterThanOrEqual(4.5, \App\Support\Marca::contraste($tema['texto-2'], $tema['superficie']));
+    }
+
+    // --- Colores por defecto de la app ---
+
+    public function test_un_candidato_nuevo_arranca_con_los_colores_de_la_app(): void
+    {
+        Livewire::actingAs($this->admin())
+            ->test(TenantsFormulario::class)
+            ->assertSet('usar_colores', false)
+            ->assertSet('color_primario', Marca::PRIMARIO_DEFECTO)
+            ->assertSet('color_secundario', Marca::SECUNDARIO_DEFECTO)
+            ->assertSet('tema_completo', false)
+            ->set('nombre', 'Candidato Nuevo')
+            ->set('cargo', 'senado')
+            ->call('guardar')
+            ->assertHasNoErrors()
+            ->assertRedirect(route('tenants.index'));
+
+        $t = Tenant::where('nombre', 'Candidato Nuevo')->sole();
+        $this->assertFalse($t->usar_colores);
+        $this->assertSame('', Marca::css($t));
+    }
+
+    public function test_volver_a_los_colores_de_la_app_guarda_los_del_candidato(): void
+    {
+        $t = $this->candidato();
+        $t->forceFill(['tema_completo' => true, 'fondo_path' => 'tenants/1/fondo.png'])->save();
+        $this->assertTrue(Marca::temaCompleto($t->fresh()));
+
+        // Editar: elegir los colores de la app
+        Livewire::actingAs($this->admin())
+            ->test(TenantsFormulario::class, ['tenant' => $t->fresh()])
+            ->assertSet('usar_colores', true)
+            ->set('usar_colores', false)
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $t = $t->fresh();
+        $this->assertFalse($t->usar_colores);
+        // Sus colores siguen guardados, pero no se aplican
+        $this->assertSame(['#0b3d91', '#f5c400', true], [$t->color_primario, $t->color_secundario, $t->tema_completo]);
+        $this->assertSame('', Marca::css($t));
+        $this->assertFalse(Marca::temaCompleto($t));
+        $this->assertNull($t->fondoVisibleUrl());
+        $this->actingAs($this->admin())->withSession([TenantContext::SESSION_KEY => $t->id])->get('/dashboard')
+            ->assertOk()
+            ->assertDontSee('--marca-600', false);
+
+        // Y se pueden volver a usar sin escribirlos de nuevo
+        Livewire::actingAs($this->admin())
+            ->test(TenantsFormulario::class, ['tenant' => $t])
+            ->assertSet('color_primario', '#0b3d91')
+            ->set('usar_colores', true)
+            ->call('guardar');
+
+        $this->assertStringContainsString('--marca-600: 11 61 145;', Marca::css($t->fresh()));
+        $this->assertNotNull($t->fresh()->fondoVisibleUrl());
+    }
+
+    public function test_las_pantallas_de_candidatos(): void
+    {
+        $t = $this->candidato();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->get(route('tenants.index'))->assertOk()
+            ->assertSee('Nuevo candidato')->assertSee('Candidato Demo');
+        $this->actingAs($admin)->get(route('tenants.create'))->assertOk()->assertSee('Crear candidato');
+        $this->actingAs($admin)->get(route('tenants.edit', $t))->assertOk()->assertSee('Guardar cambios');
+
+        // Un usuario restringido no administra candidatos
+        $this->actingAs($this->admin($t))->get(route('tenants.edit', $t))->assertForbidden();
     }
 }

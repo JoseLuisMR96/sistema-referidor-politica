@@ -23,6 +23,7 @@ class Tenant extends Model
         'color_primario',
         'color_secundario',
         'tema_completo',
+        'usar_colores',
         'logo_path',
         'foto_path',
         'fondo_path',
@@ -37,6 +38,7 @@ class Tenant extends Model
     protected $casts = [
         'activo' => 'boolean',
         'tema_completo' => 'boolean',
+        'usar_colores' => 'boolean',
         'cargo' => CargoEnum::class,
     ];
 
@@ -136,6 +138,15 @@ class Tenant extends Model
         $medidas = $ruta && is_file($ruta) ? @getimagesize($ruta) : false;
 
         return $medidas ? "{$medidas[0]} / {$medidas[1]}" : '3 / 1';
+    }
+
+    /**
+     * Imagen de fondo que se pinta en la app y los formularios: ninguna si el
+     * candidato usa la apariencia por defecto (la imagen sigue guardada).
+     */
+    public function fondoVisibleUrl(): ?string
+    {
+        return $this->usar_colores === false ? null : $this->fondoUrl();
     }
 
     public function fondoUrl(): ?string

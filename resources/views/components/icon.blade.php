@@ -77,6 +77,13 @@
             </svg>
         @break
 
+        @case('scale')
+            <svg class="{{ $class }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 3v17.25m0 0c-1.47 0-2.87.3-4.13.86M12 20.25c1.47 0 2.87.3 4.13.86M3.75 6.75h16.5M5.25 6.75 2.62 15.03c-.12.36.04.76.4.9a6.75 6.75 0 0 0 4.96 0c.36-.14.52-.54.4-.9L5.75 6.75m12.5 0-2.63 8.28c-.12.36.04.76.4.9a6.75 6.75 0 0 0 4.96 0c.36-.14.52-.54.4-.9L18.75 6.75" />
+            </svg>
+        @break
+
         @case('cog')
             <svg class="{{ $class }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
