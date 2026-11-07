@@ -195,6 +195,17 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
      - **Aliados** (`AnalisisElectoral::aliados()`): mismo `Partidos::clave()` o un partido conocido en común dentro de una coalición. Con movimientos locales ("Granada Unida") no se detecta nada; por eso también se agrupa por bloque ideológico del alcalde.
      - **Alcaldes actuales:** los de la última alcaldía, que estarán en funciones en la siguiente gobernación (2023 → 2027).
      - El ganador es el más votado sin el blanco (`elegido` viene vacío desde 2019). Un candidato es `clave|nombre`.
+  5. **Plan de campaña** ([PlanCampania](app/Services/Historico/PlanCampania.php), secciones 5 a 8; la vista está en [analisis/plan.blade.php](resources/views/livewire/dashboard/analisis/plan.blade.php)):
+     - **Meta y avance:**
+       - **Cómo se calcula:** en gobernación y alcaldía son los votos del ganador; en asamblea, Cámara y concejo, la **cifra repartidora**, con umbral del 50 % del cuociente (30 % con 2 curules). Se proyecta con el crecimiento de votos entre las dos últimas elecciones (tope +50 %).
+       - **Reparto:** en un cargo departamental, la meta del departamento se reparte por los votos válidos de cada municipio. En alcaldía y concejo, cada municipio tiene su propia meta.
+       - **Curules:** las de Cámara están fijas en `PlanCampania::CURULES_CAMARA`, porque los elegidos de la Registraduría vienen incompletos. Las demás salen de los elegidos de 2015, porque desde 2019 no se publican.
+       - **A mano:** la meta y las curules se pueden fijar en pantalla (`?meta=`, `?curules=`).
+       - **Avance:** son los registros del candidato por municipio de votación, **solo conteos**.
+       - Senado, Presidencia y JAL no tienen meta.
+     - **Votos por conquistar:** se suman los que no votaron (potencial − votos válidos, aproximado) y el voto en blanco. Aparte se muestran los que votaron en la última presidencial (1.ª vuelta) pero no en este cargo.
+     - **Disputa:** puntaje de 0 a 100: 60 % margen, 25 % cambio de bloque del ganador (si no hay bloque, cambio de partido = un cuarto) y 15 % volatilidad **entre bloques**. Por partido no sirve, porque las coaliciones cambian de nombre.
+     - **Prioridades:** cada criterio se lleva a 0–1 y se pondera según el enfoque (`ENFOQUES`). Un criterio sin datos no pesa. Además sugiere una acción (`ACCIONES`). La afinidad usa el bloque del partido del candidato y se puede cambiar.
 - **Partidos entre años:** [Partidos::clave()](app/Support/Partidos.php) agrupa las variantes de nombre ("Partido Social de Unidad Nacional" → "Partido de la U"). En 2023 el voto en blanco llega con partido "CANDIDATOS TOTALES" y se lleva a "VOTO EN BLANCO".
   - **Coaliciones aparte:** nombre con guion, que empieza por "Coalición" o que menciona dos o más partidos conocidos.
   - **Siglas (ASI, AICO, MAIS):** solo sirven para detectar coaliciones. Si no, "Así Ganamos Todos" caería en el ASI.

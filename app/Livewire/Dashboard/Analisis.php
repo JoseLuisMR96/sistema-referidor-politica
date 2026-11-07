@@ -5,8 +5,10 @@ namespace App\Livewire\Dashboard;
 use App\Enums\CargoEnum;
 use App\Models\Departamento;
 use App\Models\PartidoIdeologia;
+use App\Models\PublicRegistration;
 use App\Services\Historico\AnalisisElectoral;
 use App\Services\Historico\HistoricoElectoralStats;
+use App\Services\Historico\PlanCampania;
 use App\Support\Partidos;
 use App\Support\TenantContext;
 use Livewire\Attributes\Url;
@@ -20,6 +22,8 @@ use Livewire\Component;
  * 3. Tendencia: izquierda, centro o derecha por municipio y año (tabla editable).
  * 4. Alcaldes y gobernación: el alcalde en funciones frente a cada candidato a
  *    gobernación en su municipio (coincidencia estadística, no prueba).
+ * 5–8. Plan de campaña (PlanCampania): meta de votos y avance de los registros,
+ *    votos por conquistar, municipios en disputa y orden de prioridades.
  */
 class Analisis extends Component
 {
@@ -28,6 +32,10 @@ class Analisis extends Component
         'municipios' => 'Tamaño de los municipios',
         'tendencia' => 'Tendencia política',
         'alcaldes' => 'Alcaldes y gobernación',
+        'meta' => 'Meta y avance',
+        'conquistar' => 'Votos por conquistar',
+        'disputa' => 'Municipios en disputa',
+        'prioridades' => 'Prioridades',
     ];
 
     /** Secciones que todavía no están hechas */
@@ -55,6 +63,22 @@ class Analisis extends Component
     /** Alcaldes: candidato a gobernación que pinta el mapa ("clave|nombre") */
     #[Url(as: 'gob')]
     public ?string $gobernador = null;
+
+    /** Meta: votos que el usuario fija a mano (si no, la calculada) */
+    #[Url(as: 'meta')]
+    public ?int $metaManual = null;
+
+    /** Meta: curules de la corporación fijadas a mano */
+    #[Url(as: 'curules')]
+    public ?int $curulesManual = null;
+
+    /** Prioridades: enfoque (PlanCampania::ENFOQUES) */
+    #[Url]
+    public string $enfoque = 'equilibrado';
+
+    /** Prioridades: bloque del candidato para medir afinidad ('' = ninguno) */
+    #[Url]
+    public ?string $afinidad = null;
 
     /** Filtro de la tabla de clasificación de partidos */
     public string $buscarPartido = '';
@@ -111,6 +135,42 @@ class Analisis extends Component
     public function updatedCargo(): void
     {
         $this->ajustarPartido(app(AnalisisElectoral::class));
+        // La meta y las curules a mano son de un cargo
+        $this->metaManual = null;
+        $this->curulesManual = null;
+    }
+
+    /**
+     * Registros del candidato elegido por municipio de votación (solo conteos).
+     * En "Todos" no hay candidato: null.
+     *
+     * @return array<int, int>|null
+     */
+    private function registrosPorMunicipio(): ?array
+    {
+        if (! app(TenantContext::class)->id()) {
+            return null;
+        }
+
+        return PublicRegistration::query()
+            ->whereNotNull('voting_municipality_id')
+            ->selectRaw('voting_municipality_id, COUNT(*) as total')
+            ->groupBy('voting_municipality_id')
+            ->pluck('total', 'voting_municipality_id')
+            ->map(fn ($n) => (int) $n)->all();
+    }
+
+    /** Bloque del partido del candidato, para la afinidad de las prioridades. */
+    private function bloqueCandidato(array $ideologias): ?string
+    {
+        $partido = app(TenantContext::class)->tenant()?->partido;
+        if (! $partido) {
+            return null;
+        }
+
+        $ideologia = $ideologias[Partidos::clave($partido)] ?? AnalisisElectoral::inferir($partido, $ideologias);
+
+        return PartidoIdeologia::bloque($ideologia);
     }
 
     public function verSeccion(string $seccion): void
@@ -161,6 +221,7 @@ class Analisis extends Component
         $clasificacion = null;
         $alcaldes = null;
         $actuales = null;
+        $plan = null;
         $mapa = null;
 
         if ($datos && $this->seccion === 'fortines' && $this->partido) {
@@ -200,6 +261,10 @@ class Analisis extends Component
             }
         }
 
+        if ($datos && in_array($this->seccion, ['meta', 'conquistar', 'disputa', 'prioridades'], true)) {
+            [$plan, $mapa] = $this->plan(app(PlanCampania::class), $departamento);
+        }
+
         $this->dispatch('analisis-mapa', mapa: $mapa);
 
         return view('livewire.dashboard.analisis', [
@@ -213,10 +278,146 @@ class Analisis extends Component
             'clasificacion' => $clasificacion,
             'alcaldes' => $alcaldes,
             'actuales' => $actuales,
+            'plan' => $plan,
+            'tenantNombre' => app(TenantContext::class)->tenant()?->nombre,
             'mapa' => $mapa,
             'partidoCandidato' => app(TenantContext::class)->tenant()?->partido
                 ? Partidos::clave(app(TenantContext::class)->tenant()->partido) : null,
         ])->title('Análisis electoral');
+    }
+
+    /** Secciones 5–8: datos y mapa. */
+    private function plan(PlanCampania $plan, Departamento $departamento): array
+    {
+        $registros = $this->registrosPorMunicipio();
+        $ideologias = PartidoIdeologia::mapa();
+        $this->metaManual = $this->metaManual > 0 ? min($this->metaManual, 50_000_000) : null;
+        $this->curulesManual = $this->curulesManual > 0 ? min($this->curulesManual, 120) : null;
+
+        switch ($this->seccion) {
+            case 'meta':
+                $m = $plan->meta($departamento->id, $this->cargo, $registros, $this->metaManual, $this->curulesManual);
+
+                return [$m, $m['aplica'] ? $this->mapaMeta($departamento, $m) : null];
+
+            case 'conquistar':
+                $c = $plan->conquistar($departamento->id, $this->cargo);
+
+                return [$c, $this->mapaConquistar($departamento, $c)];
+
+            case 'disputa':
+                $d = $plan->disputa($departamento->id, $this->cargo, $ideologias);
+
+                return [$d, $this->mapaDisputa($departamento, $d)];
+
+            default:
+                if ($this->afinidad === null) {
+                    $this->afinidad = $this->bloqueCandidato($ideologias) ?? '';
+                }
+                if (! array_key_exists($this->enfoque, PlanCampania::ENFOQUES)) {
+                    $this->enfoque = 'equilibrado';
+                }
+                $bloque = array_key_exists($this->afinidad, PartidoIdeologia::BLOQUES) ? $this->afinidad : null;
+                $p = $plan->prioridades($departamento->id, $this->cargo, $bloque, $this->enfoque,
+                    $registros, $this->metaManual, $this->curulesManual, $ideologias);
+
+                return [$p, $this->mapaPrioridades($departamento, $p)];
+        }
+    }
+
+    /** Verde según el avance de los registros; sin candidato, azul según la meta. */
+    private function mapaMeta(Departamento $departamento, array $m): array
+    {
+        $conRegistros = $m['registros'] !== null;
+        $maxAvance = max(1, (float) collect($m['municipios'])->max('avance'));
+        $maxMeta = max(1, (int) collect($m['municipios'])->max('meta'));
+        $n = fn ($v) => number_format((int) $v, 0, ',', '.');
+
+        return [
+            'geo' => $this->geo($departamento),
+            'municipios' => collect($m['municipios'])->filter(fn ($r) => $r['codigo_dane'])
+                ->mapWithKeys(fn ($r) => [$r['codigo_dane'] => [
+                    'color' => $conRegistros ? '#16a34a' : '#2563eb',
+                    'opacidad' => $conRegistros
+                        ? ($r['avance'] ? round(0.12 + 0.78 * $r['avance'] / $maxAvance, 2) : 0.05)
+                        : ($r['meta'] ? round(0.1 + 0.8 * sqrt($r['meta'] / $maxMeta), 2) : 0.04),
+                    'lineas' => [
+                        $r['municipio'],
+                        $r['meta'] !== null ? 'Meta: '.$n($r['meta']).' votos' : 'Sin meta',
+                        $conRegistros ? 'Registros: '.$n($r['registros']).($r['avance'] !== null ? " ({$r['avance']}% de la meta)" : '') : '',
+                    ],
+                ]])->all(),
+        ];
+    }
+
+    /** Morado según cuántos no votaron o votaron en blanco. */
+    private function mapaConquistar(Departamento $departamento, array $c): array
+    {
+        $valor = fn ($r) => $r['conquistables'] ?? $r['blanco'];
+        $maximo = max(1, (int) collect($c['municipios'])->max($valor));
+        $n = fn ($v) => number_format((int) $v, 0, ',', '.');
+
+        return [
+            'geo' => $this->geo($departamento),
+            'municipios' => collect($c['municipios'])->filter(fn ($r) => $r['codigo_dane'])
+                ->mapWithKeys(fn ($r) => [$r['codigo_dane'] => [
+                    'color' => '#7c3aed',
+                    'opacidad' => round(0.08 + 0.82 * sqrt($valor($r) / $maximo), 2),
+                    'lineas' => [
+                        $r['municipio'],
+                        $r['no_votaron'] !== null ? 'No votaron: '.$n($r['no_votaron'])." (votó el {$r['participacion']}%)" : 'Sin potencial electoral',
+                        'En blanco: '.$n($r['blanco'])." ({$r['blanco_pct']}%)",
+                        $r['solo_presidencial'] ? 'Votaron por presidente y no aquí: '.$n($r['solo_presidencial']) : '',
+                    ],
+                ]])->all(),
+        ];
+    }
+
+    /** Naranja = disputado; color del bloque ganador: claro = inclinado, fuerte = fortín. */
+    private function mapaDisputa(Departamento $departamento, array $d): array
+    {
+        return [
+            'geo' => $this->geo($departamento),
+            'municipios' => collect($d['municipios'])->filter(fn ($r) => $r['codigo_dane'])
+                ->mapWithKeys(fn ($r) => [$r['codigo_dane'] => [
+                    'color' => $r['estado'] === 'disputado' ? '#ea580c' : (PartidoIdeologia::BLOQUES[$r['bloque']][1] ?? '#78716c'),
+                    'opacidad' => match ($r['estado']) {
+                        'disputado' => round(0.3 + 0.6 * $r['puntaje'] / 100, 2),
+                        'fortin' => 0.8,
+                        default => 0.3,
+                    },
+                    'lineas' => [
+                        $r['municipio'],
+                        PlanCampania::ESTADOS[$r['estado']]." · puntaje {$r['puntaje']}",
+                        'Ganó: '.$r['ganador_nombre']." por {$r['margen']} pts",
+                        $r['segundo_nombre'] ? 'Segundo: '.$r['segundo_nombre'] : '',
+                    ],
+                ]])->all(),
+        ];
+    }
+
+    /** Color de la acción sugerida, más intenso cuanto más prioritario. */
+    private function mapaPrioridades(Departamento $departamento, array $p): array
+    {
+        $maximo = max(1, (int) collect($p['municipios'])->max('puntaje'));
+
+        return [
+            'geo' => $this->geo($departamento),
+            'municipios' => collect($p['municipios'])->filter(fn ($r) => $r['codigo_dane'])
+                ->mapWithKeys(function ($r) use ($maximo) {
+                    $accion = PlanCampania::ACCIONES[$r['accion']];
+
+                    return [$r['codigo_dane'] => [
+                        'color' => $accion[2],
+                        'opacidad' => round(0.15 + 0.75 * $r['puntaje'] / $maximo, 2),
+                        'lineas' => [
+                            $r['municipio'],
+                            "Prioridad #{$r['puesto']} · {$r['puntaje']} pts",
+                            $accion[0].': '.$accion[1],
+                        ],
+                    ]];
+                })->all(),
+        ];
     }
 
     private function ordenar(array $filas, ?int $ultimo): array
