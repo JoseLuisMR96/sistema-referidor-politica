@@ -55,7 +55,7 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
 - **Usuarios:** `users.tenant_id` admite nulo.
   - **Nulo = global:** elige el tenant en el selector del menú; "Todos los tenants" es solo para consultar.
   - **Con valor = restringido:** `TenantContext::id()` siempre devuelve su tenant, sin importar la sesión.
-  - Solo los globales con `tenants.gestionar` administran tenants en `/admin/tenants`.
+  - Solo los globales con `tenants.gestionar` administran tenants: listado en `/admin/tenants` ([Index](app/Livewire/Admin/Tenants/Index.php)) y registro o edición en `/admin/tenants/crear` y `/admin/tenants/{tenant}/editar` ([Formulario](app/Livewire/Admin/Tenants/Formulario.php)).
   - **Eliminar un candidato** ([EliminarTenant](app/Services/EliminarTenant.php)) borra todos sus datos en orden de FK, dentro de una transacción, y exige escribir su nombre para confirmar.
     - **Se niega si tiene usuarios restringidos:** `users.tenant_id` es SET NULL, así que esos usuarios quedarían **globales**.
     - Si agregas una tabla con `tenant_id`, súmala a `EliminarTenant::TABLAS` en el orden correcto.
@@ -88,6 +88,7 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
     - `Marca::tema()` deriva las variables `--tema-*`. El texto sale blanco o casi negro según el contraste, y el acento es el secundario o, si no hay, el color del texto.
     - El layout pone `class="tema-marca"` en `<html>`, y `app.css` reescribe con esa clase los neutros (`bg-white`, `text-slate-*`, `border-gray-*`…). Si una vista usa una clase neutra nueva que no cambia, agrégala en `app.css`.
     - Chart.js: no cambies `Chart.defaults.borderColor`/`backgroundColor`, porque apaga la paleta automática.
+  - **Colores por defecto** (`tenants.usar_colores` en false): la app se ve con los colores de `app.css` (fondos blancos, índigo) y sin imagen de fondo, pero los colores, el tema completo y el fondo del candidato **quedan guardados** para volver a usarlos. `Marca::usaColores()` lo decide; `Marca::css()` y `temaCompleto()` no imprimen nada y los layouts usan `Tenant::fondoVisibleUrl()`. Un candidato nuevo arranca así, con `Marca::PRIMARIO_DEFECTO` y `SECUNDARIO_DEFECTO` en los campos. Logo, foto y slogan no dependen de esto.
   - **Para que algo nuevo tome el color del candidato,** usa `indigo-*` o `secundario`, nunca un hex fijo. Después de tocar `tailwind.config.js` o clases nuevas, corre `npm run build` (o `composer dev`).
   - **Dónde se aplica:**
     - **App:** el layout toma el tenant del contexto. En "Todos" se ve el diseño por defecto.
@@ -97,12 +98,12 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
 ## Redes sociales (Meta)
 
 - **Credenciales globales:** viven en `integraciones` (proveedor `meta`), cifradas con el cast `encrypted:array`. Si se rota `APP_KEY`, hay que volver a cargarlas.
-  - Se configuran en `/admin/redes`: solo usuarios globales con `redes.configurar`.
+  - Se configuran en `/admin/integraciones` ([Integraciones](app/Livewire/Admin/Integraciones.php)), junto con la API key de Anthropic: solo usuarios globales con `redes.configurar`.
   - URL base y versión de la Graph API son configurables. Meta retira versiones viejas: si falla por versión, súbela ahí.
-- **Token de Meta:** al guardar un token nuevo en `/admin/redes`, `MetaGraphClient::extenderToken()` lo cambia por uno de **~60 días** (`fb_exchange_token`, con App ID y App Secret) y guarda `token_vence` en las credenciales.
+- **Token de Meta:** al guardar un token nuevo en `/admin/integraciones`, `MetaGraphClient::extenderToken()` lo cambia por uno de **~60 días** (`fb_exchange_token`, con App ID y App Secret) y guarda `token_vence` en las credenciales.
   - El del Graph API Explorer dura **horas**: ya pasó que se venció de un día para otro.
   - El Dashboard de redes avisa cuando faltan 10 días o menos, si ya venció o si Meta rechaza el token.
-- **Cuentas del candidato:** [RedCuenta](app/Models/RedCuenta.php), por tenant. Su `access_token`, también cifrado, existe solo cuando el candidato da acceso.
+- **Cuentas del candidato:** [RedCuenta](app/Models/RedCuenta.php), por tenant. Listado en `/admin/redes` y registro en `/admin/redes/crear` o `/admin/redes/{cuenta}/editar` ([Cuenta](app/Livewire/Admin/Redes/Cuenta.php); la de otro tenant da 404). Su `access_token`, también cifrado, existe solo cuando el candidato da acceso.
 - **Qué mide [RedesSincronizador](app/Services/Redes/RedesSincronizador.php)** según el acceso:
   - **Instagram sin acceso:** Business Discovery con la cuenta IG profesional propia. El token debe tener `instagram_basic`, `instagram_manage_insights`, `pages_show_list`, `pages_read_engagement` y `business_management`; sin `instagram_manage_insights`, Meta responde el error #10. Solo funciona con cuentas profesionales y solo trae datos públicos: seguidores, publicaciones y me gusta/comentarios.
   - **Instagram con token del candidato:** sus datos directos.
@@ -187,7 +188,7 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
   1. **Fortines:** % y votos de un partido por municipio y año, cambio entre elecciones y dónde ganó.
   2. **Tamaño de los municipios:** potencial electoral, peso en el departamento, mujeres, mesas y participación aproximada (votos válidos sobre potencial).
   3. **Tendencia:** por municipio y año, el bloque (izquierda, centro, derecha) del partido ganador, el reparto de votos por bloque, los municipios que cambiaron de bloque y un índice de −2 a +2. El voto en blanco no cuenta.
-     - **Tabla `partidos_ideologia`** (global, por `Partidos::clave()`), con 5 valores: izquierda, centro_izquierda, centro, centro_derecha, derecha. La migración la llena con una clasificación inicial (Wikipedia y prensa) y se edita en la misma pantalla. Solo usuarios **globales** con `historico.importar`.
+     - **Tabla `partidos_ideologia`** (global, por `Partidos::clave()`), con 5 valores: izquierda, centro_izquierda, centro, centro_derecha, derecha. La migración la llena con una clasificación inicial (Wikipedia y prensa) y se edita en `/admin/ideologia` ([Ideologias\Index](app/Livewire/Admin/Ideologias/Index.php), menú Configuración), con un modal. Consultan quienes tienen `historico.ver`; clasifican solo usuarios **globales** con `historico.importar`. La sección 3 solo enlaza ahí.
      - **Coaliciones sin clasificar:** `AnalisisElectoral::inferir()` toma la de sus partidos si todos caen en el mismo bloque; si no, quedan "sin clasificar".
      - `tendencia()` no va en caché (la clasificación cambia); `datos()` sí. Si cambias `Partidos::clave()`, sube `AnalisisElectoral::VERSION_CALCULO`.
   4. **Alcaldes y gobernación:** el alcalde en funciones (elegido 4 años antes) frente a lo que sacó cada candidato a gobernación en su municipio. Se presenta como **coincidencia estadística**, no como prueba de participación en política.
@@ -319,6 +320,7 @@ Al agregar un permiso: añádelo al array del seeder, asígnalo a los roles, pro
 
 ## Convenciones
 
+- **Registros (CRUD):** listado con buscador y botón "Nuevo…" en una pantalla, y el registro o la edición en otra (`…/crear`, `…/{id}/editar`) que al guardar vuelve al listado. Formularios cortos (como la ideología) van en un modal dentro del listado. Todo lo de configuración va en el menú **Configuración**: Candidatos, Cuentas de redes, Ideología de partidos, Integraciones y Usuarios.
 - **Livewire por página**: la ruta apunta al componente (`Route::get('/dashboard', Stats::class)`), no a un controller. Los controllers quedan solo para exports, webhooks y APIs.
 - **Actions / DTOs** en el procesamiento de webhooks de WhatsApp; el resto del código pone la lógica directo en el componente Livewire. Sigue el patrón del módulo que estés tocando en vez de uniformar.
 - Listados: `WithPagination` + `$queryString` + `updatingSearch()` que llama `resetPage()` (ver `Admin\Referidores\Index`).

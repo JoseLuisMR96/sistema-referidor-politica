@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\CargoEnum;
-use App\Livewire\Admin\Tenants\Index as TenantsIndex;
+use App\Livewire\Admin\Tenants\Formulario as TenantsFormulario;
 use App\Livewire\Public\RegistrationForm;
 use App\Models\Departamento;
 use App\Models\Municipio;
@@ -85,7 +85,7 @@ class CircunscripcionTest extends TestCase
     public function test_gobernacion_exige_departamento(): void
     {
         Livewire::actingAs($this->admin())
-            ->test(TenantsIndex::class)
+            ->test(TenantsFormulario::class)
             ->set('nombre', 'Wilmar Barbosa')
             ->set('cargo', CargoEnum::GOBERNACION->value)
             ->call('guardar')
@@ -95,7 +95,7 @@ class CircunscripcionTest extends TestCase
     public function test_concejo_exige_municipio_del_mismo_departamento(): void
     {
         Livewire::actingAs($this->admin())
-            ->test(TenantsIndex::class)
+            ->test(TenantsFormulario::class)
             ->set('nombre', 'Camilo Cfer')
             ->set('cargo', CargoEnum::CONCEJO->value)
             ->set('departamento_id', $this->meta->id)
@@ -104,7 +104,7 @@ class CircunscripcionTest extends TestCase
             ->assertHasErrors(['municipio_id' => 'exists']);
 
         Livewire::actingAs($this->admin())
-            ->test(TenantsIndex::class)
+            ->test(TenantsFormulario::class)
             ->set('nombre', 'Camilo Cfer')
             ->set('descripcion', 'Postulado al Concejo municipal')
             ->set('cargo', CargoEnum::CONCEJO->value)
@@ -121,7 +121,7 @@ class CircunscripcionTest extends TestCase
     public function test_cargo_departamental_no_guarda_municipio(): void
     {
         Livewire::actingAs($this->admin())
-            ->test(TenantsIndex::class)
+            ->test(TenantsFormulario::class)
             ->set('nombre', 'Diputado Prueba')
             ->set('cargo', CargoEnum::ALCALDIA->value)
             ->set('departamento_id', $this->meta->id)

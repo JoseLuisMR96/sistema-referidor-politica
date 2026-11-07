@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\WhatsApp\ProcessTwilioWebhookAction;
 use App\Livewire\Admin\Referrers\Create as ReferrersCreate;
-use App\Livewire\Admin\Tenants\Index as TenantsIndex;
+use App\Livewire\Admin\Tenants\Formulario as TenantsFormulario;
 use App\Livewire\Public\RegistrationForm;
 use App\Livewire\Registrations\Index as RegistrationsIndex;
 use App\Livewire\Users\UserCreate;
@@ -256,7 +256,7 @@ class TenantAislamientoTest extends TestCase
         $this->actingAs($adminRestringido)->get('/admin/tenants')->assertForbidden();
 
         Livewire::actingAs($this->usuario('Administrador'))
-            ->test(TenantsIndex::class)
+            ->test(TenantsFormulario::class)
             ->set('nombre', 'Wilmar Barbosa')
             ->set('descripcion', 'Candidato al Senado')
             ->set('cargo', 'senado') // nacional: no exige lugar

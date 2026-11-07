@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\Admin\Ideologias\Index as Ideologias;
 use App\Livewire\Dashboard\Analisis;
 use App\Models\Departamento;
 use App\Models\Municipio;
@@ -174,21 +175,43 @@ class AnalisisElectoralTest extends TestCase
         $admin = User::factory()->create(['tenant_id' => null]);
         $admin->assignRole('Administrador');
 
+        // La sección de tendencia ya no edita: enlaza a la pantalla de ideología
         Livewire::actingAs($admin)
             ->test(Analisis::class, ['departamentoId' => $this->meta->id, 'seccion' => 'tendencia'])
-            ->assertSee('Ideología de los partidos')
-            ->call('clasificar', 'LIBERAL PARTIDO ALIANZA VERDE', 'centro')
-            ->call('anotar', 'LIBERAL PARTIDO ALIANZA VERDE', 'Coalición local')
-            ->call('clasificar', 'MIRA', '');
+            ->assertSee('Clasificar partidos');
+
+        Livewire::actingAs($admin)
+            ->test(Ideologias::class, ['departamentoId' => $this->meta->id])
+            ->set('cargo', 'concejo')
+            ->set('estado', 'inferidos') // Liberal + Verde: los dos de centro-izquierda
+            ->assertSee('PARTIDO LIBERAL - PARTIDO ALIANZA VERDE')
+            ->call('abrir', 'LIBERAL PARTIDO ALIANZA VERDE')
+            ->assertSet('modal', true)
+            ->set('ideologia', 'centro')
+            ->set('nota', 'Coalición local')
+            ->call('guardar')
+            ->assertHasNoErrors()
+            ->assertSet('modal', false)
+            ->call('quitar', 'MIRA');
 
         $this->assertDatabaseHas('partidos_ideologia', ['clave' => 'LIBERAL PARTIDO ALIANZA VERDE', 'ideologia' => 'centro', 'nota' => 'Coalición local']);
         $this->assertDatabaseMissing('partidos_ideologia', ['clave' => 'MIRA']);
 
+        // Ideología inválida
+        Livewire::actingAs($admin)
+            ->test(Ideologias::class, ['departamentoId' => $this->meta->id])
+            ->call('abrir', 'PARTIDO DE LA U')
+            ->set('ideologia', 'extrema')
+            ->call('guardar')
+            ->assertHasErrors(['ideologia']);
+
+        // Un analista consulta, pero no clasifica
         $analista = User::factory()->create(['tenant_id' => null]);
         $analista->assignRole('Analista');
         Livewire::actingAs($analista)
-            ->test(Analisis::class, ['departamentoId' => $this->meta->id, 'seccion' => 'tendencia'])
-            ->call('clasificar', 'PARTIDO LIBERAL', 'derecha')
+            ->test(Ideologias::class, ['departamentoId' => $this->meta->id])
+            ->assertSee('Solo un usuario global')
+            ->call('abrir', 'PARTIDO LIBERAL')
             ->assertForbidden();
     }
 

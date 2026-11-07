@@ -142,7 +142,7 @@
             <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                 A <strong>{{ $tenantDash->nombre }}</strong> le falta el cargo o el lugar al que se postula.
                 @if (auth()->user()->esGlobal() && auth()->user()->can('tenants.gestionar'))
-                    Complétalo en <a href="{{ route('tenants.index') }}" class="underline font-semibold">Tenants</a> para ver el apoyo por municipio.
+                    Complétalo en <a href="{{ route('tenants.index') }}" class="underline font-semibold">Candidatos</a> para ver el apoyo por municipio.
                 @else
                     Pídele a un administrador que lo complete para ver el apoyo por municipio.
                 @endif

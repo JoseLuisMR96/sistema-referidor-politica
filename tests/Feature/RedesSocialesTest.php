@@ -2,7 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\Admin\Redes\Index as RedesIndex;
+use App\Livewire\Admin\Integraciones;
+use App\Livewire\Admin\Redes\Cuenta as RedesCuenta;
 use App\Models\Integracion;
 use App\Models\RedCuenta;
 use App\Models\RedMetrica;
@@ -67,7 +68,7 @@ class RedesSocialesTest extends TestCase
         $admin = $this->usuario('Administrador');
 
         Livewire::actingAs($admin)
-            ->test(RedesIndex::class)
+            ->test(Integraciones::class)
             ->set('app_id', '123')
             ->set('app_secret', 'secreto-super-largo-9999')
             ->set('access_token', 'EAAB-token-largo-abcd')
@@ -80,7 +81,7 @@ class RedesSocialesTest extends TestCase
 
         // Guardar de nuevo con los campos secretos vacíos los conserva
         Livewire::actingAs($admin)
-            ->test(RedesIndex::class)
+            ->test(Integraciones::class)
             ->set('graph_version', 'v24.0')
             ->call('guardarCredenciales')
             ->assertHasNoErrors();
@@ -93,10 +94,9 @@ class RedesSocialesTest extends TestCase
 
     public function test_usuario_restringido_no_toca_las_credenciales_globales(): void
     {
+        // Ni siquiera abre la pantalla: las credenciales son de todos los candidatos
         Livewire::actingAs($this->usuario('Administrador', $this->camilo))
-            ->test(RedesIndex::class)
-            ->set('access_token', 'intento')
-            ->call('guardarCredenciales')
+            ->test(Integraciones::class)
             ->assertForbidden();
     }
 
@@ -288,7 +288,7 @@ class RedesSocialesTest extends TestCase
         ])]);
 
         Livewire::actingAs($this->usuario('Administrador'))
-            ->test(RedesIndex::class)
+            ->test(Integraciones::class)
             ->set('app_id', '123')
             ->set('app_secret', 'secreto-app')
             ->set('access_token', 'token-corto')
@@ -323,5 +323,40 @@ class RedesSocialesTest extends TestCase
         Livewire::actingAs($this->usuario('Administrador'))
             ->test(\App\Livewire\Dashboard\Redes::class)
             ->assertSee('Meta rechazó el token');
+    }
+
+    // --- Pantallas ---
+
+    public function test_las_pantallas_de_cuentas_e_integraciones(): void
+    {
+        $admin = $this->usuario('Administrador');
+        $cuenta = RedCuenta::create(['red' => 'instagram', 'usuario' => 'camilocfer']);
+        $otro = Tenant::create(['nombre' => 'Otro Candidato']);
+        $this->usarTenant($otro);
+        $ajena = RedCuenta::create(['red' => 'instagram', 'usuario' => 'ajena']);
+        app(TenantContext::class)->set($this->camilo->id);
+
+        $sesion = [TenantContext::SESSION_KEY => $this->camilo->id];
+        $this->actingAs($admin)->withSession($sesion)->get(route('redes.index'))->assertOk()
+            ->assertSee('camilocfer')->assertDontSee('ajena')->assertSee('Nueva cuenta');
+        $this->actingAs($admin)->withSession($sesion)->get(route('redes.create'))->assertOk();
+        $this->actingAs($admin)->withSession($sesion)->get(route('redes.edit', $cuenta))->assertOk()->assertSee('camilocfer');
+        // La cuenta de otro candidato no se encuentra
+        $this->actingAs($admin)->withSession($sesion)->get(route('redes.edit', $ajena->id))->assertNotFound();
+
+        $this->actingAs($admin)->get(route('integraciones.index'))->assertOk()->assertSee('App Secret');
+        $this->actingAs($this->usuario('Administrador', $this->camilo))->get(route('integraciones.index'))->assertForbidden();
+    }
+
+    public function test_guardar_una_cuenta_vuelve_al_listado(): void
+    {
+        Livewire::actingAs($this->usuario('Administrador'))
+            ->test(RedesCuenta::class)
+            ->set('usuario', '@camilocfer')
+            ->call('guardar')
+            ->assertHasNoErrors()
+            ->assertRedirect(route('redes.index'));
+
+        $this->assertSame('camilocfer', RedCuenta::sole()->usuario);
     }
 }
