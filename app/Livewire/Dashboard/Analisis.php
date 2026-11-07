@@ -18,7 +18,8 @@ use Livewire\Component;
  * 1. Fortines: dónde saca más votos cada partido y cómo cambió entre elecciones.
  * 2. Municipios: dónde está la gente (potencial electoral) y cuánta vota.
  * 3. Tendencia: izquierda, centro o derecha por municipio y año (tabla editable).
- * 4. Alcaldes y gobernación: próximamente.
+ * 4. Alcaldes y gobernación: el alcalde en funciones frente a cada candidato a
+ *    gobernación en su municipio (coincidencia estadística, no prueba).
  */
 class Analisis extends Component
 {
@@ -30,7 +31,7 @@ class Analisis extends Component
     ];
 
     /** Secciones que todavía no están hechas */
-    public const PROXIMAMENTE = ['alcaldes'];
+    public const PROXIMAMENTE = [];
 
     #[Url]
     public string $seccion = 'fortines';
@@ -47,9 +48,13 @@ class Analisis extends Component
     #[Url]
     public string $orden = 'porcentaje';
 
-    /** Año que pinta el mapa de tendencia (por defecto, el último) */
+    /** Tendencia: año del mapa. Alcaldes: año de la gobernación. Por defecto, el último. */
     #[Url]
     public ?int $anio = null;
+
+    /** Alcaldes: candidato a gobernación que pinta el mapa ("clave|nombre") */
+    #[Url(as: 'gob')]
+    public ?string $gobernador = null;
 
     /** Filtro de la tabla de clasificación de partidos */
     public string $buscarPartido = '';
@@ -154,6 +159,8 @@ class Analisis extends Component
         $municipios = null;
         $tendencia = null;
         $clasificacion = null;
+        $alcaldes = null;
+        $actuales = null;
         $mapa = null;
 
         if ($datos && $this->seccion === 'fortines' && $this->partido) {
@@ -177,6 +184,22 @@ class Analisis extends Component
             $clasificacion = $this->clasificacion($datos['partidos'], $ideologias, $tendencia['inferidas']);
         }
 
+        if ($departamento && $this->seccion === 'alcaldes') {
+            $anios = $analisis->aniosAlcaldes($departamento->id);
+            if ($anios) {
+                if (! in_array($this->anio, $anios, true)) {
+                    $this->anio = end($anios);
+                }
+                $ideologias = PartidoIdeologia::mapa();
+                $alcaldes = $analisis->alcaldes($departamento->id, $this->anio, $ideologias) + ['anios' => $anios];
+                if (! isset($alcaldes['candidatos'][$this->gobernador])) {
+                    $this->gobernador = array_key_first($alcaldes['candidatos']);
+                }
+                $mapa = $this->gobernador ? $this->mapaAlcaldes($departamento, $alcaldes) : null;
+                $actuales = $analisis->alcaldesActuales($departamento->id, $ideologias);
+            }
+        }
+
         $this->dispatch('analisis-mapa', mapa: $mapa);
 
         return view('livewire.dashboard.analisis', [
@@ -188,6 +211,8 @@ class Analisis extends Component
             'municipios' => $municipios,
             'tendencia' => $tendencia,
             'clasificacion' => $clasificacion,
+            'alcaldes' => $alcaldes,
+            'actuales' => $actuales,
             'mapa' => $mapa,
             'partidoCandidato' => app(TenantContext::class)->tenant()?->partido
                 ? Partidos::clave(app(TenantContext::class)->tenant()->partido) : null,
@@ -252,6 +277,37 @@ class Analisis extends Component
                             $x['hubo'] ? 'Ganó: '.$x['ganador_nombre'].' ('.($ideo[0] ?? 'sin clasificar').')' : 'Sin datos ese año',
                             $x['hubo'] ? "Izq. {$pct['izquierda']}% · Centro {$pct['centro']}% · Der. {$pct['derecha']}%" : '',
                             $r['giro'] ? 'Cambió de bloque en la última elección' : '',
+                        ],
+                    ]];
+                })->all(),
+        ];
+    }
+
+    /**
+     * Cuánto sacó el candidato elegido por encima (verde) o por debajo (rojo)
+     * de su promedio departamental, con el alcalde en funciones.
+     */
+    private function mapaAlcaldes(Departamento $departamento, array $a): array
+    {
+        $id = $this->gobernador;
+        $maximo = max(1, (float) collect($a['municipios'])->max(fn ($r) => abs($r['candidatos'][$id]['sobre'] ?? 0)));
+
+        return [
+            'geo' => $this->geo($departamento),
+            'municipios' => collect($a['municipios'])->filter(fn ($r) => $r['codigo_dane'])
+                ->mapWithKeys(function ($r) use ($id, $maximo) {
+                    $x = $r['candidatos'][$id];
+                    $sobre = $x['sobre'] ?? 0;
+                    $alc = $r['alcalde'];
+
+                    return [$r['codigo_dane'] => [
+                        'color' => $sobre >= 0 ? '#16a34a' : '#dc2626',
+                        'opacidad' => round(0.1 + 0.8 * abs($sobre) / $maximo, 2),
+                        'lineas' => [
+                            $r['municipio'],
+                            "{$x['porcentaje']}% (".($sobre >= 0 ? '+' : '')."{$sobre} pts sobre su promedio)",
+                            $alc ? "Alcalde: {$alc['candidato']} ({$alc['partido']})" : 'Sin datos del alcalde',
+                            $x['aliado'] ? 'Comparten partido' : '',
                         ],
                     ]];
                 })->all(),

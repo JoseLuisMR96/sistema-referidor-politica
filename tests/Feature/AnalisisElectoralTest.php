@@ -192,6 +192,79 @@ class AnalisisElectoralTest extends TestCase
             ->assertForbidden();
     }
 
+    private function cargarAlcaldes(): void
+    {
+        $fila = fn ($anio, $cargo, $mun, $partido, $candidato, $votos) => [
+            'anio' => (string) $anio, 'cargo' => $cargo, 'departamento' => 'META', 'municipio' => $mun,
+            'partido' => $partido, 'candidato' => $candidato, 'votos' => (string) $votos,
+        ];
+
+        app(ImportadorHistorico::class)->guardar([
+            // Alcaldes elegidos en 2019
+            $fila(2019, 'alcaldia', 'VILLAVICENCIO', 'PARTIDO LIBERAL COLOMBIANO', 'ALCALDE UNO', 500),
+            $fila(2019, 'alcaldia', 'VILLAVICENCIO', 'PARTIDO CONSERVADOR COLOMBIANO', 'OTRO', 300),
+            $fila(2019, 'alcaldia', 'GRANADA', 'GRANADA UNIDA', 'ALCALDE DOS', 70),
+            $fila(2019, 'alcaldia', 'GRANADA', 'PARTIDO LIBERAL COLOMBIANO', 'TERCERO', 30),
+            // Gobernación 2023
+            $fila(2023, 'gobernacion', 'VILLAVICENCIO', 'PARTIDO LIBERAL COLOMBIANO', 'ANA', 600),
+            $fila(2023, 'gobernacion', 'VILLAVICENCIO', 'FE Y FIRMEZA', 'BETO', 400),
+            $fila(2023, 'gobernacion', 'GRANADA', 'PARTIDO LIBERAL COLOMBIANO', 'ANA', 20),
+            $fila(2023, 'gobernacion', 'GRANADA', 'FE Y FIRMEZA', 'BETO', 80),
+        ]);
+    }
+
+    public function test_alcaldes_cruza_el_alcalde_con_la_gobernacion(): void
+    {
+        $this->cargarAlcaldes();
+        $an = app(AnalisisElectoral::class);
+
+        $this->assertSame([2023], $an->aniosAlcaldes($this->meta->id));
+        $r = $an->alcaldes($this->meta->id, 2023);
+
+        // Ana: 620 de 1.100 = 56,4 % en el departamento
+        $ana = $r['candidatos']['PARTIDO LIBERAL|ANA'];
+        $this->assertSame(56.4, $ana['porcentaje']);
+        $this->assertSame(1, $ana['con_aliado']);          // Villavicencio, alcalde liberal
+        $this->assertSame(3.6, $ana['sobre_con_aliado']);   // 60 % − 56,4 %
+        $this->assertSame(-36.4, $ana['sobre_sin_aliado']); // Granada: 20 % − 56,4 %
+
+        $villavo = collect($r['municipios'])->firstWhere('id', $this->villavo->id);
+        $this->assertSame('ALCALDE UNO', $villavo['alcalde']['candidato']);
+        $this->assertSame('PARTIDO LIBERAL|ANA', $villavo['favorito']);
+        $this->assertTrue($villavo['candidatos']['PARTIDO LIBERAL|ANA']['aliado']);
+
+        $granada = collect($r['municipios'])->firstWhere('id', $this->granada->id);
+        $this->assertSame('FE Y FIRMEZA|BETO', $granada['favorito']);
+        $this->assertFalse($granada['candidatos']['FE Y FIRMEZA|BETO']['aliado']);
+
+        $actuales = $an->alcaldesActuales($this->meta->id);
+        $this->assertSame(2019, $actuales['anio']);
+        $this->assertSame(['ALCALDE UNO', 'ALCALDE DOS'], collect($actuales['municipios'])->sortBy('municipio')->reverse()->pluck('candidato')->values()->all());
+    }
+
+    public function test_aliados_por_partido_o_coalicion(): void
+    {
+        $this->assertTrue(AnalisisElectoral::aliados('PARTIDO LIBERAL COLOMBIANO', 'PARTIDO LIBERAL - PARTIDO ALIANZA VERDE'));
+        $this->assertTrue(AnalisisElectoral::aliados('UNIDOS PODEMOS - CAMBIO RADICAL', 'PARTIDO CAMBIO RADICAL'));
+        $this->assertFalse(AnalisisElectoral::aliados('GRANADA UNIDA', 'FE Y FIRMEZA'));
+        $this->assertFalse(AnalisisElectoral::aliados('PARTIDO LIBERAL COLOMBIANO', 'PARTIDO CONSERVADOR COLOMBIANO'));
+    }
+
+    public function test_la_seccion_de_alcaldes_carga(): void
+    {
+        $this->cargarAlcaldes();
+        $analista = User::factory()->create();
+        $analista->assignRole('Analista');
+
+        Livewire::actingAs($analista)
+            ->test(Analisis::class, ['departamentoId' => $this->meta->id, 'seccion' => 'alcaldes'])
+            ->assertSet('anio', 2023)
+            ->assertSet('gobernador', 'PARTIDO LIBERAL|ANA')
+            ->assertSee('coincidencia estadística')
+            ->assertSee('ALCALDE UNO')
+            ->assertSee('Alcaldes en funciones para 2023'); // elegidos en 2019
+    }
+
     public function test_la_pantalla_carga_y_exige_permiso(): void
     {
         $this->cargar();
