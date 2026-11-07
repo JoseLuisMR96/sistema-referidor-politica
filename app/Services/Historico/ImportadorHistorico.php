@@ -354,7 +354,7 @@ class ImportadorHistorico
         return $idx;
     }
 
-    private function cargo(string $texto): ?string
+    public function cargo(string $texto): ?string
     {
         $t = HistoricoElectoralStats::normalizar($texto);
 
