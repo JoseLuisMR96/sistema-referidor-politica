@@ -113,6 +113,10 @@ class Analisis extends Component
     /** Líderes: solo los del partido elegido */
     public bool $soloPartido = false;
 
+    /** Testigos: cuántos hay para repartir (uno por mesa) */
+    #[Url(as: 'tst')]
+    public ?int $testigosDisponibles = null;
+
     /** Puestos: municipio */
     #[Url(as: 'mun')]
     public ?int $municipioId = null;
@@ -442,7 +446,8 @@ class Analisis extends Component
                 return [['maquinaria' => $m, 'partidos' => $partidos, 'lideres' => $lideres], $m ? $this->mapaMaquinaria($departamento, $m) : null];
 
             default:
-                $t = $e->testigos($departamento->id, $this->cargo);
+                $this->testigosDisponibles = $this->testigosDisponibles > 0 ? min($this->testigosDisponibles, 200_000) : null;
+                $t = $e->testigos($departamento->id, $this->cargo, $this->testigosDisponibles);
 
                 return [$t, $this->mapaTestigos($departamento, $t)];
         }
@@ -498,7 +503,7 @@ class Analisis extends Component
                 ->mapWithKeys(fn ($r) => [$r['codigo_dane'] => [
                     'color' => EstrategiaElectoral::NIVELES[$r['nivel']][1],
                     'opacidad' => $r['nivel'] === 'ninguno' ? 0.15 : 0.75,
-                    'lineas' => [$r['municipio'], 'Nivel: '.EstrategiaElectoral::NIVELES[$r['nivel']][0], ...array_values($r['senales'])],
+                    'lineas' => [$r['municipio'], 'Prioridad #'.$r['prioridad'].' · '.EstrategiaElectoral::NIVELES[$r['nivel']][0].' · puntaje '.$r['puntaje'], ...array_values($r['senales'])],
                 ]])->all(),
         ];
     }

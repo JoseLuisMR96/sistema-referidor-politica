@@ -107,6 +107,48 @@ class PuestosVotacionTest extends TestCase
         $this->assertSame([], $a['senales']);
     }
 
+    public function test_exporta_y_carga_en_otro_servidor(): void
+    {
+        $this->cargar();
+        DB::table('puestos_votacion')->update(['potencial' => 500, 'potencial_anio' => 2026]);
+        $archivo = tempnam(sys_get_temp_dir(), 'pu').'.jsonl.gz';
+
+        $this->artisan('historico:exportar-puestos', ['--depto' => ['META'], '--archivo' => $archivo])->assertSuccessful();
+
+        // "Otro servidor": las tablas vacías
+        DB::table('historico_puestos')->delete();
+        DB::table('puestos_votacion')->delete();
+
+        $this->artisan('historico:cargar-puestos', ['archivos' => [$archivo]])->assertSuccessful();
+        @unlink($archivo);
+
+        $this->assertSame(3, DB::table('puestos_votacion')->count());
+        $this->assertSame(10, DB::table('historico_puestos')->count());
+        $this->assertSame(1500, (int) DB::table('puestos_votacion')->sum('potencial'));
+        $this->assertSame('COMUNA 1', DB::table('puestos_votacion')->where('codigo', '01')->value('comuna'));
+    }
+
+    public function test_testigos_usa_nulos_y_reparte_por_mesa(): void
+    {
+        $this->assertSame(['mediana' => 2.0, 'escala' => 1.4826], \App\Services\Historico\EstrategiaElectoral::robusta([1, 2, 3]));
+        $this->assertSame(['mediana' => null, 'escala' => null], \App\Services\Historico\EstrategiaElectoral::robusta([1, 2]));
+
+        $this->cargar();
+        // El histórico por municipio, para que haya elección que ordenar
+        app(\App\Services\Historico\ImportadorHistorico::class)->guardar([
+            ['anio' => '2023', 'cargo' => 'gobernacion', 'departamento' => 'META', 'municipio' => 'VILLAVICENCIO', 'partido' => 'PARTIDO DE LA U', 'candidato' => 'X', 'votos' => '580'],
+        ]);
+        $this->villavo->forceFill(['mesas' => 7])->save();
+
+        $t = app(\App\Services\Historico\EstrategiaElectoral::class)->testigos($this->meta->id, 'gobernacion', 5);
+        $this->assertTrue($t['hay_nulos']);
+        $v = $t['municipios'][0];
+        $this->assertSame(6.3, $v['nulos_pct']); // 67 de 1067 tarjetas
+        $this->assertSame(5, $v['testigos']);    // 7 mesas, 5 testigos
+        // ESCUELA B sale entre los puestos para vigilar
+        $this->assertContains('ESCUELA B', array_column($t['puestos'], 'nombre'));
+    }
+
     public function test_la_seccion_de_puestos_carga(): void
     {
         $analista = User::factory()->create();

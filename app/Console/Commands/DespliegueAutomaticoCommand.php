@@ -62,6 +62,8 @@ class DespliegueAutomaticoCommand extends Command
         $pasos = [
             ['package:discover', []],
             ['migrate', ['--force' => true]],
+            // Puestos de votación del repo (database/data/puestos): solo los archivos que cambiaron
+            ['historico:cargar-puestos', ['--si-cambiaron' => true]],
             ['db:seed', ['--class' => 'RolesYPermisosSeeder', '--force' => true]],
             // No optimize:clear: también vacía la caché de la app (el precálculo del Histórico)
             ['config:clear', []],
