@@ -234,6 +234,38 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
 - **Potencial electoral:** `municipios.potencial_electoral` (y mujeres, hombres, mesas, año) se carga con `php artisan municipios:potencial <DIVIPOL.TXT> --anio=2026` ([comando](app/Console/Commands/CargarPotencialElectoralCommand.php)). El DIVIPOL viene en los archivos básicos de la Registraduría.
   - **Ojo:** en el archivo de 2026 la primera columna de potencial es la de **mujeres**, aunque el PDF diga "hombres, mujeres". Así da 51 % de mujeres, como el censo real.
 
+## Eventos de campaña (territorio)
+
+Trazabilidad de dónde ha estado el candidato o su equipo (emisarios que van en su nombre): menú **Territorio**.
+
+- **Pantallas:**
+  - `/eventos` ([Index](app/Livewire/Eventos/Index.php)): totales, mapa del departamento (municipios por número de eventos y un punto por evento con coordenadas), resumen por municipio y dinero por persona, y el listado con filtros.
+  - `/eventos/crear` y `/eventos/{evento}/editar` ([Formulario](app/Livewire/Eventos/Formulario.php)): registro y edición.
+  - `/eventos/{evento}` ([Show](app/Livewire/Eventos/Show.php)): ficha con galería.
+  - `/equipo-campana` ([Equipo](app/Livewire/Eventos/Equipo.php)): equipo, con un modal.
+- **Tablas por tenant:** `equipo_campana` ([IntegranteEquipo](app/Models/IntegranteEquipo.php)), `eventos_campana` ([EventoCampana](app/Models/EventoCampana.php)), `evento_integrante` (otros del equipo que fueron) y `evidencias_evento` ([EvidenciaEvento](app/Models/EvidenciaEvento.php)). Están en `EliminarTenant::TABLAS`, que además borra `eventos/{tenant}` del disco.
+- **Dónde se puede registrar** ([LugaresCampana](app/Support/LugaresCampana.php)), según el ámbito del cargo:
+  - municipal (alcaldía, concejo, JAL): solo su municipio;
+  - departamental (gobernación, asamblea, Cámara): los municipios de su departamento;
+  - nacional: todo el país.
+
+  Un candidato sin cargo o sin lugar completo no registra eventos.
+- **Dinero:**
+  - `monto_asignado` queda a nombre del **responsable**: si hay monto, el responsable es obligatorio.
+  - `monto_gastado` es lo legalizado.
+  - Los montos aceptan "1.200.000" (`Formulario::monto()`).
+  - Los totales no cuentan los eventos cancelados.
+- **Evidencias:**
+  - Fotos (JPG, PNG, WEBP) y PDF de hasta 10 MB, sin SVG.
+  - Van en el disco **privado** `local`, en `eventos/{tenant}/{evento}/`.
+  - Se sirven solo por la ruta `eventos.evidencia` ([controller](app/Http/Controllers/EvidenciaEventoController.php)), con `eventos.ver` y el scope del tenant (la de otro candidato da 404).
+- **Ubicación:** opcional, como "lat, lng". Se pega de Google Maps o se toma con el botón "Usar mi ubicación" (geolocalización del navegador).
+- **Equipo:** quitar a alguien que ya tiene eventos solo lo **desactiva**, para no perder la trazabilidad. El teléfono se guarda con `PhoneNumber::digits()`.
+- **Permisos:**
+  - `eventos.ver`: Administrador, Operador y Analista.
+  - `eventos.crear`, `eventos.editar` y `equipo.gestionar`: Administrador y Operador.
+  - `eventos.eliminar`: solo Administrador.
+
 ## Modelo de dominio
 
 ### Dos sistemas de referidos independientes (no los mezcles)

@@ -177,6 +177,20 @@
                     @endcan
                 @endcanany
 
+                @canany(['eventos.ver', 'equipo.gestionar'])
+                    <div class="{{ $tituloSeccion }}">Territorio</div>
+
+                    @can('eventos.ver')
+                        <x-sidebar-link route="eventos.index" pattern="eventos.*" icon="map">
+                            Eventos de campaña
+                        </x-sidebar-link>
+                    @endcan
+
+                    <x-sidebar-link route="equipo.index" icon="users">
+                        Equipo de campaña
+                    </x-sidebar-link>
+                @endcanany
+
                 @can('whatsapp.enviar')
                     <div class="{{ $tituloSeccion }}">Comunicación</div>
 
