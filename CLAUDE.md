@@ -190,7 +190,11 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
      - **Tabla `partidos_ideologia`** (global, por `Partidos::clave()`), con 5 valores: izquierda, centro_izquierda, centro, centro_derecha, derecha. La migración la llena con una clasificación inicial (Wikipedia y prensa) y se edita en la misma pantalla. Solo usuarios **globales** con `historico.importar`.
      - **Coaliciones sin clasificar:** `AnalisisElectoral::inferir()` toma la de sus partidos si todos caen en el mismo bloque; si no, quedan "sin clasificar".
      - `tendencia()` no va en caché (la clasificación cambia); `datos()` sí. Si cambias `Partidos::clave()`, sube `AnalisisElectoral::VERSION_CALCULO`.
-  4. **Alcaldes y gobernación:** el alcalde en funciones (elegido 4 años antes) frente a lo que sacó cada candidato a gobernación en su municipio. Pendiente. Se presenta como **coincidencia estadística**, no como prueba de participación en política.
+  4. **Alcaldes y gobernación:** el alcalde en funciones (elegido 4 años antes) frente a lo que sacó cada candidato a gobernación en su municipio. Se presenta como **coincidencia estadística**, no como prueba de participación en política.
+     - **"Sobre su promedio"** = % del candidato en el municipio − su % en el departamento. El "favorito" de un municipio es quien más lo supera.
+     - **Aliados** (`AnalisisElectoral::aliados()`): mismo `Partidos::clave()` o un partido conocido en común dentro de una coalición. Con movimientos locales ("Granada Unida") no se detecta nada; por eso también se agrupa por bloque ideológico del alcalde.
+     - **Alcaldes actuales:** los de la última alcaldía, que estarán en funciones en la siguiente gobernación (2023 → 2027).
+     - El ganador es el más votado sin el blanco (`elegido` viene vacío desde 2019). Un candidato es `clave|nombre`.
 - **Partidos entre años:** [Partidos::clave()](app/Support/Partidos.php) agrupa las variantes de nombre ("Partido Social de Unidad Nacional" → "Partido de la U"). En 2023 el voto en blanco llega con partido "CANDIDATOS TOTALES" y se lleva a "VOTO EN BLANCO".
   - **Coaliciones aparte:** nombre con guion, que empieza por "Coalición" o que menciona dos o más partidos conocidos.
   - **Siglas (ASI, AICO, MAIS):** solo sirven para detectar coaliciones. Si no, "Así Ganamos Todos" caería en el ASI.

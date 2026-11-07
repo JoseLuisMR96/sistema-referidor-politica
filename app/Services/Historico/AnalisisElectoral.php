@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
  * - Fortines: dónde saca más votos cada partido y cómo cambió entre elecciones.
  * - Municipios: tamaño (potencial electoral), votos y participación.
  * - Tendencia: izquierda, centro o derecha, según la tabla partidos_ideologia.
+ * - Alcaldes: el alcalde en funciones frente a los candidatos a gobernación.
  *
  * Los partidos se siguen entre años por Partidos::clave(). Solo primera vuelta.
  * Comparte la versión de caché del Histórico: se renueva al importar.
@@ -371,5 +372,251 @@ class AnalisisElectoral
             'total_potencial' => $totalPotencial,
             'municipios' => $filas,
         ];
+    }
+
+    // ===================== Alcaldes y gobernación =====================
+
+    /**
+     * Candidatos por municipio de una elección, de más a menos votados, con el
+     * total de votos del municipio (incluye el blanco). El voto en blanco no
+     * va en la lista.
+     */
+    public function candidatos(int $departamentoId, string $cargo, int $anio): array
+    {
+        return $this->recordar('candidatos', [$departamentoId, $cargo, $anio], function () use ($departamentoId, $cargo, $anio) {
+            $filas = DB::table('historico_electoral as h')
+                ->join('municipios as m', 'm.id', '=', 'h.municipio_id')
+                ->where('h.departamento_id', $departamentoId)
+                ->where('h.cargo', $cargo)
+                ->where('h.anio', $anio)
+                ->where('h.vuelta', 1)
+                ->groupBy('h.municipio_id', 'm.nombre', 'm.codigo_dane', 'm.potencial_electoral', 'h.partido', 'h.candidato')
+                ->selectRaw('h.municipio_id, m.nombre, m.codigo_dane, m.potencial_electoral, h.partido, h.candidato, SUM(h.votos) as votos')
+                ->get();
+
+            $municipios = [];
+            foreach ($filas as $f) {
+                $mid = (int) $f->municipio_id;
+                $municipios[$mid] ??= [
+                    'id' => $mid, 'nombre' => $f->nombre, 'codigo_dane' => $f->codigo_dane,
+                    'potencial' => $f->potencial_electoral !== null ? (int) $f->potencial_electoral : null,
+                    'total' => 0, 'candidatos' => [],
+                ];
+                $votos = (int) $f->votos;
+                $municipios[$mid]['total'] += $votos;
+
+                $clave = Partidos::clave($f->partido);
+                if ($clave === 'VOTO EN BLANCO' || $votos <= 0) {
+                    continue;
+                }
+                $candidato = trim((string) $f->candidato);
+                // Un candidato = partido + nombre (en gobernación y alcaldía hay uno por partido)
+                $id = $clave.'|'.$candidato;
+                $actual = $municipios[$mid]['candidatos'][$id] ?? ['clave' => $clave, 'partido' => $f->partido, 'candidato' => $candidato, 'votos' => 0];
+                $actual['votos'] += $votos;
+                $municipios[$mid]['candidatos'][$id] = $actual;
+            }
+
+            foreach ($municipios as &$m) {
+                uasort($m['candidatos'], fn ($a, $b) => $b['votos'] <=> $a['votos']);
+            }
+            unset($m);
+
+            return $municipios;
+        });
+    }
+
+    /** Años de gobernación que se pueden cruzar con los alcaldes elegidos 4 años antes. */
+    public function aniosAlcaldes(int $departamentoId): array
+    {
+        return $this->recordar('aniosAlcaldes', [$departamentoId], function () use ($departamentoId) {
+            $anios = fn ($cargo) => DB::table('historico_electoral')->where('departamento_id', $departamentoId)
+                ->where('cargo', $cargo)->distinct()->pluck('anio')->map(fn ($a) => (int) $a)->all();
+            $alcaldia = $anios('alcaldia');
+            $gobernacion = array_values(array_filter($anios('gobernacion'), fn ($a) => in_array($a - 4, $alcaldia, true)));
+            sort($gobernacion);
+
+            return $gobernacion;
+        });
+    }
+
+    /** ¿Comparten algún partido conocido? (el mismo, o uno está dentro de la coalición del otro) */
+    public static function aliados(string $partidoA, string $partidoB): bool
+    {
+        $claveA = Partidos::clave($partidoA);
+        if ($claveA === Partidos::clave($partidoB)) {
+            return $claveA !== 'VOTO EN BLANCO';
+        }
+
+        $a = array_diff(Partidos::miembros($partidoA), ['VOTO EN BLANCO']);
+        $b = array_diff(Partidos::miembros($partidoB), ['VOTO EN BLANCO']);
+
+        return (bool) array_intersect($a, $b);
+    }
+
+    /**
+     * Alcalde en funciones (elegido 4 años antes) frente a lo que sacó cada
+     * candidato a gobernación en su municipio.
+     *
+     * "Sobre su promedio" = % del candidato en el municipio − su % en todo el
+     * departamento. Es una coincidencia estadística: no prueba que el alcalde
+     * haya hecho campaña por nadie.
+     *
+     * @param  array<string, string>|null  $ideologias  clave => ideología (por defecto, la tabla)
+     */
+    public function alcaldes(int $departamentoId, int $anioGobernacion, ?array $ideologias = null): array
+    {
+        $ideologias ??= PartidoIdeologia::mapa();
+        $anioAlcaldia = $anioGobernacion - 4;
+        $alcaldias = $this->candidatos($departamentoId, 'alcaldia', $anioAlcaldia);
+        $gobernacion = $this->candidatos($departamentoId, 'gobernacion', $anioGobernacion);
+
+        // Candidatos a gobernación con su % en todo el departamento
+        $totalDepto = array_sum(array_column($gobernacion, 'total'));
+        $candidatos = [];
+        foreach ($gobernacion as $m) {
+            foreach ($m['candidatos'] as $id => $c) {
+                $candidatos[$id] ??= ['id' => $id, 'clave' => $c['clave'], 'partido' => $c['partido'], 'candidato' => $c['candidato'], 'votos_depto' => 0];
+                $candidatos[$id]['votos_depto'] += $c['votos'];
+            }
+        }
+        foreach ($candidatos as $id => $c) {
+            $candidatos[$id]['porcentaje'] = $totalDepto ? round($c['votos_depto'] * 100 / $totalDepto, 1) : 0.0;
+        }
+        uasort($candidatos, fn ($a, $b) => $b['votos_depto'] <=> $a['votos_depto']);
+
+        $filas = [];
+        foreach ($gobernacion as $mid => $m) {
+            $alc = $alcaldias[$mid] ?? null;
+            $lista = $alc ? array_values($alc['candidatos']) : [];
+            $alcalde = $lista[0] ?? null;
+            $ideologia = $alcalde ? ($ideologias[$alcalde['clave']] ?? self::inferir($alcalde['partido'], $ideologias)) : null;
+
+            $porCandidato = [];
+            foreach ($candidatos as $id => $c) {
+                $votos = $m['candidatos'][$id]['votos'] ?? 0;
+                $pct = $m['total'] ? round($votos * 100 / $m['total'], 1) : null;
+                $porCandidato[$id] = [
+                    'votos' => $votos,
+                    'porcentaje' => $pct,
+                    'sobre' => $pct !== null ? round($pct - $c['porcentaje'], 1) : null,
+                    'aliado' => $alcalde !== null && self::aliados($alcalde['partido'], $c['partido']),
+                ];
+            }
+
+            $filas[] = [
+                'id' => $mid,
+                'municipio' => $m['nombre'],
+                'codigo_dane' => $m['codigo_dane'],
+                'potencial' => $m['potencial'],
+                'alcalde' => $alcalde ? [
+                    'candidato' => $alcalde['candidato'],
+                    'partido' => $alcalde['partido'],
+                    'clave' => $alcalde['clave'],
+                    'porcentaje' => $alc['total'] ? round($alcalde['votos'] * 100 / $alc['total'], 1) : null,
+                    'ideologia' => $ideologia,
+                    'bloque' => PartidoIdeologia::bloque($ideologia),
+                ] : null,
+                'ganador' => array_key_first($m['candidatos']),
+                // El candidato que más sacó por encima de su promedio departamental
+                'favorito' => collect($porCandidato)->filter(fn ($x) => $x['sobre'] !== null)->sortByDesc('sobre')->keys()->first(),
+                'candidatos' => $porCandidato,
+            ];
+        }
+
+        // Por candidato: municipios con alcalde aliado frente a los demás
+        $resumen = [];
+        foreach ($candidatos as $id => $c) {
+            $conAlcalde = collect($filas)->filter(fn ($f) => $f['alcalde'] !== null);
+            $con = $conAlcalde->filter(fn ($f) => $f['candidatos'][$id]['aliado']);
+            $sin = $conAlcalde->reject(fn ($f) => $f['candidatos'][$id]['aliado']);
+            $media = fn ($col) => $col->count() ? round($col->avg(fn ($f) => $f['candidatos'][$id]['sobre']), 1) : null;
+
+            $resumen[$id] = $c + [
+                'ganados' => collect($filas)->where('ganador', $id)->count(),
+                'favorito_en' => collect($filas)->where('favorito', $id)->count(),
+                'con_aliado' => $con->count(),
+                'sobre_con_aliado' => $media($con),
+                'sobre_sin_aliado' => $media($sin),
+            ];
+        }
+
+        // Por bloque del alcalde: cuánto sacó cada candidato sobre su promedio
+        $porBloque = [];
+        foreach (['izquierda', 'centro', 'derecha', 'sin_clasificar'] as $bloque) {
+            $grupo = collect($filas)->filter(fn ($f) => $f['alcalde'] !== null && ($f['alcalde']['bloque'] ?? 'sin_clasificar') === $bloque);
+            $porBloque[$bloque] = [
+                'municipios' => $grupo->count(),
+                'sobre' => collect($candidatos)->map(fn ($c, $id) => $grupo->count()
+                    ? round($grupo->avg(fn ($f) => $f['candidatos'][$id]['sobre']), 1) : null)->all(),
+            ];
+        }
+
+        // Por partido del alcalde (2 o más municipios): quién sobresalió ahí
+        $porPartido = collect($filas)->filter(fn ($f) => $f['alcalde'] !== null)
+            ->groupBy(fn ($f) => $f['alcalde']['clave'])
+            ->filter(fn ($g) => $g->count() >= 2)
+            ->map(function ($g, $clave) use ($candidatos) {
+                $sobre = collect($candidatos)->map(fn ($c, $id) => round($g->avg(fn ($f) => $f['candidatos'][$id]['sobre']), 1));
+                $mejor = $sobre->sortDesc()->keys()->first();
+
+                return [
+                    'clave' => $clave,
+                    'partido' => $g->first()['alcalde']['partido'],
+                    'municipios' => $g->count(),
+                    'mejor' => $mejor,
+                    'mejor_sobre' => $mejor !== null ? $sobre[$mejor] : null,
+                    'favorito_veces' => $mejor !== null ? $g->where('favorito', $mejor)->count() : 0,
+                    'aliado' => $mejor !== null && self::aliados($g->first()['alcalde']['partido'], $candidatos[$mejor]['partido']),
+                ];
+            })->sortByDesc('municipios')->values()->all();
+
+        return [
+            'anio_gobernacion' => $anioGobernacion,
+            'por_partido' => $porPartido,
+            'anio_alcaldia' => $anioAlcaldia,
+            'candidatos' => $resumen,
+            'por_bloque' => $porBloque,
+            'municipios' => $filas,
+        ];
+    }
+
+    /**
+     * Alcaldes elegidos en la última elección de alcaldía: los que estarán en
+     * funciones en la siguiente de gobernación (los de 2023, en 2027).
+     */
+    public function alcaldesActuales(int $departamentoId, ?array $ideologias = null): array
+    {
+        $ideologias ??= PartidoIdeologia::mapa();
+        $anio = (int) DB::table('historico_electoral')->where('departamento_id', $departamentoId)
+            ->where('cargo', 'alcaldia')->max('anio');
+        if (! $anio) {
+            return ['anio' => null, 'municipios' => []];
+        }
+
+        $filas = [];
+        foreach ($this->candidatos($departamentoId, 'alcaldia', $anio) as $m) {
+            $lista = array_values($m['candidatos']);
+            $a = $lista[0] ?? null;
+            if (! $a) {
+                continue;
+            }
+            $ideologia = $ideologias[$a['clave']] ?? self::inferir($a['partido'], $ideologias);
+            $filas[] = [
+                'id' => $m['id'],
+                'municipio' => $m['nombre'],
+                'codigo_dane' => $m['codigo_dane'],
+                'potencial' => $m['potencial'],
+                'candidato' => $a['candidato'],
+                'partido' => $a['partido'],
+                'porcentaje' => $m['total'] ? round($a['votos'] * 100 / $m['total'], 1) : null,
+                'margen' => $m['total'] ? round(($a['votos'] - ($lista[1]['votos'] ?? 0)) * 100 / $m['total'], 1) : null,
+                'ideologia' => $ideologia,
+                'bloque' => PartidoIdeologia::bloque($ideologia),
+            ];
+        }
+        usort($filas, fn ($x, $y) => ($y['potencial'] ?? 0) <=> ($x['potencial'] ?? 0));
+
+        return ['anio' => $anio, 'municipios' => $filas];
     }
 }

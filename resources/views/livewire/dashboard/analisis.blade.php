@@ -40,13 +40,32 @@
             </select>
         </label>
 
-        <label class="text-xs font-semibold text-slate-700">Cargo
-            <select wire:model.live="cargo" class="{{ $select }}">
-                @foreach ($cargos as $c)
-                    <option value="{{ $c->value }}">{{ $c->label() }}</option>
-                @endforeach
-            </select>
-        </label>
+        @if ($seccion !== 'alcaldes')
+            <label class="text-xs font-semibold text-slate-700">Cargo
+                <select wire:model.live="cargo" class="{{ $select }}">
+                    @foreach ($cargos as $c)
+                        <option value="{{ $c->value }}">{{ $c->label() }}</option>
+                    @endforeach
+                </select>
+            </label>
+        @endif
+
+        @if ($seccion === 'alcaldes' && $alcaldes)
+            <label class="text-xs font-semibold text-slate-700">Elección a gobernación
+                <select wire:model.live="anio" class="{{ $select }}">
+                    @foreach ($alcaldes['anios'] as $a)
+                        <option value="{{ $a }}">{{ $a }} (alcaldes elegidos en {{ $a - 4 }})</option>
+                    @endforeach
+                </select>
+            </label>
+            <label class="text-xs font-semibold text-slate-700 lg:col-span-2">Candidato a gobernación (mapa)
+                <select wire:model.live="gobernador" class="{{ $select }}">
+                    @foreach ($alcaldes['candidatos'] as $id => $c)
+                        <option value="{{ $id }}">{{ $c['candidato'] ?: $c['partido'] }} — {{ $c['partido'] }} ({{ $c['porcentaje'] }}%)</option>
+                    @endforeach
+                </select>
+            </label>
+        @endif
 
         @if ($seccion === 'fortines')
             <label class="text-xs font-semibold text-slate-700 lg:col-span-2">Partido o coalición
@@ -479,6 +498,244 @@
                 </table>
             </div>
         </div>
+    @endif
+
+    {{-- ===== 4. Alcaldes y gobernación ===== --}}
+    @if ($seccion === 'alcaldes')
+        @php($ideologiasDef = \App\Models\PartidoIdeologia::IDEOLOGIAS)
+        @php($pts = fn ($v) => $v === null ? '—' : ($v > 0 ? '+' : '').number_format($v, 1, ',', '.'))
+        @php($colorPts = fn ($v) => $v === null ? 'text-slate-400' : ($v >= 0 ? 'text-emerald-600' : 'text-rose-600'))
+
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <span class="font-semibold">Esto es una coincidencia estadística, no una prueba.</span>
+            Que un candidato a gobernación saque más donde gobierna cierto alcalde puede deberse al alcalde, pero también
+            al tamaño del municipio, a su historia política o a la campaña del propio candidato.
+            "Sobre su promedio" = su % en el municipio menos su % en todo el departamento.
+        </div>
+
+        @if (! $alcaldes)
+            <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-500">
+                Para este cruce hacen falta los resultados de gobernación y los de alcaldía de 4 años antes en este departamento.
+            </div>
+        @else
+            @php($top = array_slice($alcaldes['candidatos'], 0, 5, true))
+
+            {{-- Resumen por candidato --}}
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <div class="text-lg font-extrabold text-slate-900">Gobernación {{ $alcaldes['anio_gobernacion'] }} frente a los alcaldes elegidos en {{ $alcaldes['anio_alcaldia'] }}</div>
+                <div class="text-xs text-slate-500 mb-4">
+                    "Sobresalió en" = municipios donde fue el candidato que más superó su propio promedio.
+                    "Alcalde de su partido" = el alcalde ganó con el mismo partido o comparten uno dentro de una coalición
+                    (no se detecta con movimientos locales de nombre propio).
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="text-left text-xs uppercase tracking-wider text-slate-400">
+                            <tr>
+                                <th class="py-2 pr-4">Candidato</th>
+                                <th class="py-2 px-3 text-right">% depto</th>
+                                <th class="py-2 px-3 text-right">Ganó en</th>
+                                <th class="py-2 px-3 text-right">Sobresalió en</th>
+                                <th class="py-2 px-3 text-right">Alcalde de su partido</th>
+                                <th class="py-2 px-3 text-right">Sobre su promedio, con ese alcalde</th>
+                                <th class="py-2 px-3 text-right">En los demás</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            @foreach ($alcaldes['candidatos'] as $id => $c)
+                                <tr wire:key="gc-{{ md5($id) }}">
+                                    <td class="py-2 pr-4">
+                                        <div class="font-semibold text-slate-900">{{ $c['candidato'] ?: $c['partido'] }}</div>
+                                        <div class="text-xs text-slate-500">{{ $c['partido'] }}</div>
+                                    </td>
+                                    <td class="py-2 px-3 text-right tabular-nums font-bold">{{ $c['porcentaje'] }}%</td>
+                                    <td class="py-2 px-3 text-right tabular-nums">{{ $c['ganados'] }}</td>
+                                    <td class="py-2 px-3 text-right tabular-nums">{{ $c['favorito_en'] }}</td>
+                                    <td class="py-2 px-3 text-right tabular-nums">{{ $c['con_aliado'] ?: '—' }}</td>
+                                    <td class="py-2 px-3 text-right tabular-nums font-semibold {{ $colorPts($c['sobre_con_aliado']) }}">{{ $pts($c['sobre_con_aliado']) }}</td>
+                                    <td class="py-2 px-3 text-right tabular-nums {{ $colorPts($c['sobre_sin_aliado']) }}">{{ $pts($c['sobre_sin_aliado']) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                <div class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                    @php($g = $alcaldes['candidatos'][$gobernador] ?? null)
+                    <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+                        <div class="text-lg font-extrabold text-slate-900">{{ $g ? ($g['candidato'] ?: $g['partido']) : '' }}</div>
+                        <div class="text-xs text-slate-500">Verde = sacó más que su promedio ({{ $g['porcentaje'] ?? '—' }}%) · rojo = menos</div>
+                    </div>
+                    <div id="analisis-mapa" class="h-[440px] w-full rounded-xl overflow-hidden bg-slate-100" wire:ignore></div>
+                </div>
+
+                <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                    <div class="text-lg font-extrabold text-slate-900 mb-1">Por partido del alcalde</div>
+                    <div class="text-xs text-slate-500 mb-3">Partidos con 2 o más alcaldes: el candidato que más superó su promedio en esos municipios</div>
+                    @forelse ($alcaldes['por_partido'] as $p)
+                        @php($m = $alcaldes['candidatos'][$p['mejor']] ?? null)
+                        <div class="py-2 border-b border-slate-100 last:border-0" wire:key="pp-{{ md5($p['clave']) }}">
+                            <div class="text-sm font-semibold text-slate-900">{{ $p['partido'] }} <span class="text-xs font-normal text-slate-500">· {{ $p['municipios'] }} alcaldes</span></div>
+                            @if ($m)
+                                <div class="text-xs text-slate-600">
+                                    {{ $m['candidato'] ?: $m['partido'] }}
+                                    <span class="font-semibold {{ $colorPts($p['mejor_sobre']) }}">{{ $pts($p['mejor_sobre']) }} pts</span>
+                                    · sobresalió en {{ $p['favorito_veces'] }} de {{ $p['municipios'] }}
+                                    @if ($p['aliado'])
+                                        · <span class="font-semibold text-indigo-700">mismo partido</span>
+                                    @endif
+                                </div>
+                            @endif
+                        </div>
+                    @empty
+                        <div class="text-sm text-slate-500">Ningún partido tuvo 2 o más alcaldes (casi todos fueron por movimientos locales).</div>
+                    @endforelse
+                </div>
+            </div>
+
+            {{-- Por bloque del alcalde --}}
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <div class="text-lg font-extrabold text-slate-900">Según la ideología del alcalde</div>
+                <div class="text-xs text-slate-500 mb-4">
+                    Promedio de puntos sobre su propio promedio de cada candidato, en los municipios con alcalde de cada bloque
+                    (según la tabla de ideologías de la sección 3).
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="text-left text-xs uppercase tracking-wider text-slate-400">
+                            <tr>
+                                <th class="py-2 pr-4">Alcalde de</th>
+                                @foreach ($top as $c)
+                                    <th class="py-2 px-3 text-right max-w-[10rem]">{{ $c['candidato'] ?: $c['partido'] }}</th>
+                                @endforeach
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            @foreach (['izquierda' => 'Izquierda', 'centro' => 'Centro', 'derecha' => 'Derecha', 'sin_clasificar' => 'Sin clasificar'] as $b => $nombre)
+                                @php($x = $alcaldes['por_bloque'][$b])
+                                @continue(! $x['municipios'])
+                                <tr>
+                                    <td class="py-2 pr-4 font-semibold text-slate-900">{{ $nombre }} <span class="text-xs font-normal text-slate-500">({{ $x['municipios'] }})</span></td>
+                                    @foreach ($top as $id => $c)
+                                        <td class="py-2 px-3 text-right tabular-nums font-semibold {{ $colorPts($x['sobre'][$id]) }}">{{ $pts($x['sobre'][$id]) }}</td>
+                                    @endforeach
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {{-- Municipio por municipio --}}
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <div class="text-lg font-extrabold text-slate-900">Municipio por municipio</div>
+                <div class="text-xs text-slate-500 mb-4">Ordenado por tamaño del municipio. Los nombres son resultados públicos de la Registraduría.</div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="text-left text-xs uppercase tracking-wider text-slate-400">
+                            <tr>
+                                <th class="py-2 pr-4">Municipio</th>
+                                <th class="py-2 px-3">Alcalde en funciones (elegido en {{ $alcaldes['anio_alcaldia'] }})</th>
+                                <th class="py-2 px-3">Ganó la gobernación ahí</th>
+                                <th class="py-2 px-3">Más sobre su promedio</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            @foreach (collect($alcaldes['municipios'])->sortByDesc('potencial') as $r)
+                                @php($ga = $r['ganador'] ? $alcaldes['candidatos'][$r['ganador']] : null)
+                                @php($fa = $r['favorito'] ? $alcaldes['candidatos'][$r['favorito']] : null)
+                                <tr wire:key="am-{{ $r['id'] }}">
+                                    <td class="py-2 pr-4 font-semibold text-slate-900">{{ $r['municipio'] }}</td>
+                                    <td class="py-2 px-3">
+                                        @if ($r['alcalde'])
+                                            <div class="text-slate-900">{{ $r['alcalde']['candidato'] }}</div>
+                                            <div class="text-xs text-slate-500">
+                                                {{ $r['alcalde']['partido'] }} · {{ $r['alcalde']['porcentaje'] }}%
+                                                @if ($r['alcalde']['ideologia'])
+                                                    · <span style="color: {{ $ideologiasDef[$r['alcalde']['ideologia']][2] }}">{{ $ideologiasDef[$r['alcalde']['ideologia']][0] }}</span>
+                                                @endif
+                                            </div>
+                                        @else
+                                            <span class="text-slate-400">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-2 px-3">
+                                        @if ($ga)
+                                            <div class="text-slate-900">{{ $ga['candidato'] ?: $ga['partido'] }}</div>
+                                            <div class="text-xs text-slate-500">{{ $r['candidatos'][$r['ganador']]['porcentaje'] }}%
+                                                @if ($r['candidatos'][$r['ganador']]['aliado'])
+                                                    · <span class="font-semibold text-indigo-700">mismo partido del alcalde</span>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </td>
+                                    <td class="py-2 px-3">
+                                        @if ($fa)
+                                            @php($fx = $r['candidatos'][$r['favorito']])
+                                            <div class="text-slate-900">{{ $fa['candidato'] ?: $fa['partido'] }}</div>
+                                            <div class="text-xs">
+                                                <span class="font-semibold {{ $colorPts($fx['sobre']) }}">{{ $pts($fx['sobre']) }} pts</span>
+                                                <span class="text-slate-500">({{ $fx['porcentaje'] }}% aquí, {{ $fa['porcentaje'] }}% en el depto)</span>
+                                                @if ($fx['aliado'])
+                                                    · <span class="font-semibold text-indigo-700">mismo partido del alcalde</span>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
+
+        {{-- Alcaldes actuales --}}
+        @if ($actuales && $actuales['municipios'])
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <div class="text-lg font-extrabold text-slate-900">Alcaldes en funciones para {{ $actuales['anio'] + 4 }}</div>
+                <div class="text-xs text-slate-500 mb-4">
+                    Elegidos en {{ $actuales['anio'] }}: son los que estarán en el cargo durante la próxima elección a gobernación.
+                    Ordenados por tamaño del municipio.
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="text-left text-xs uppercase tracking-wider text-slate-400">
+                            <tr>
+                                <th class="py-2 pr-4">Municipio</th>
+                                <th class="py-2 px-3 text-right">Potencial</th>
+                                <th class="py-2 px-3">Alcalde</th>
+                                <th class="py-2 px-3">Partido o movimiento</th>
+                                <th class="py-2 px-3">Ideología</th>
+                                <th class="py-2 px-3 text-right">Votos</th>
+                                <th class="py-2 px-3 text-right">Margen</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            @foreach ($actuales['municipios'] as $r)
+                                <tr wire:key="aa-{{ $r['id'] }}">
+                                    <td class="py-2 pr-4 font-semibold text-slate-900">{{ $r['municipio'] }}</td>
+                                    <td class="py-2 px-3 text-right tabular-nums">{{ $num($r['potencial']) }}</td>
+                                    <td class="py-2 px-3 text-slate-900">{{ $r['candidato'] }}</td>
+                                    <td class="py-2 px-3 text-slate-600">{{ $r['partido'] }}</td>
+                                    <td class="py-2 px-3">
+                                        @if ($r['ideologia'])
+                                            <span class="text-xs font-semibold" style="color: {{ $ideologiasDef[$r['ideologia']][2] }}">{{ $ideologiasDef[$r['ideologia']][0] }}</span>
+                                        @else
+                                            <span class="text-xs text-slate-400">Sin clasificar</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-2 px-3 text-right tabular-nums">{{ $r['porcentaje'] }}%</td>
+                                    <td class="py-2 px-3 text-right tabular-nums">{{ $r['margen'] }} pts</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
     @endif
 </div>
 
