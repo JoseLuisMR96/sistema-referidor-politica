@@ -322,9 +322,16 @@
 {{-- ===== 11. Testigos electorales ===== --}}
 @if ($seccion === 'testigos' && $plan)
     <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        Son señales para decidir dónde poner testigos y mirar con más cuidado, <b>no pruebas de fraude</b>: un municipio pequeño
-        o una elección local muy reñida también pueden mover las cifras.
+        Es un orden para decidir dónde poner testigos y mirar con más cuidado, <b>no una prueba de fraude</b>:
+        un municipio pequeño o una elección local muy reñida también mueven las cifras.
     </div>
+
+    @unless ($plan['hay_nulos'])
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Sin datos por puesto para {{ $cargoLabel }} {{ $plan['ultimo'] }}: no se ven nulos ni tarjetas no marcadas, que son la señal más directa.
+            Se cargan con <code>historico:importar-puestos</code> (o <code>historico:cargar-puestos</code> en el servidor).
+        </div>
+    @endunless
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         @foreach (EstrategiaElectoral::NIVELES as $clave => [$nombre, $color])
@@ -338,42 +345,70 @@
         @endforeach
     </div>
 
+    <div class="{{ $tarjeta }} p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+        <label class="text-xs font-semibold text-slate-700">Testigos disponibles
+            <input type="number" min="1" wire:model.blur="testigosDisponibles" placeholder="Ej. 300" class="{{ $select }}">
+        </label>
+        <div class="text-sm text-slate-600 sm:col-span-2">
+            Hay {{ $num($plan['mesas']) }} mesas en el departamento; {{ $num($plan['mesas_riesgo']) }} en municipios de nivel alto o medio.
+            @if ($plan['disponibles'])
+                Con {{ $num($plan['disponibles']) }} testigos (uno por mesa, en orden de prioridad) cubres
+                <b>{{ $num($plan['cubiertas_riesgo']) }}</b> de esas mesas
+                ({{ $plan['mesas_riesgo'] ? round($plan['cubiertas_riesgo'] * 100 / $plan['mesas_riesgo']) : 0 }}%).
+            @else
+                Escribe cuántos testigos tienes y se reparten por mesa, empezando por los municipios de más riesgo.
+            @endif
+        </div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div class="lg:col-span-3 {{ $tarjeta }} p-4">
             <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
                 <div class="text-lg font-extrabold text-slate-900">{{ $cargoLabel }} {{ $plan['ultimo'] }}</div>
-                <div class="text-xs text-slate-500">Rojo = más señales</div>
+                <div class="text-xs text-slate-500">Rojo = más prioridad</div>
             </div>
             <div id="analisis-mapa" class="h-[440px] w-full rounded-xl overflow-hidden bg-slate-100" wire:ignore></div>
         </div>
         <div class="lg:col-span-2 {{ $tarjeta }} p-4">
-            <div class="text-lg font-extrabold text-slate-900 mb-1">Qué se revisa</div>
-            <ul class="text-sm text-slate-600 list-disc pl-5 space-y-1">
-                <li><b>Participación muy alta:</b> votó el 85 % o más del potencial.</li>
-                @if ($plan['previo'])
-                    <li><b>Salto de votos:</b> crecieron 40 puntos más que en el departamento ({{ $signo($plan['crecimiento_depto']) }}% entre {{ $plan['previo'] }} y {{ $plan['ultimo'] }}).</li>
-                    <li><b>Subida del ganador:</b> su partido subió 40 puntos o más frente a {{ $plan['previo'] }}.</li>
-                @endif
-                <li><b>Casi unanimidad:</b> el ganador sacó 80 % o más.</li>
-                @if ($plan['mismo_dia'])
-                    <li><b>Mismo día:</b> 15 % más o menos votos que {{ collect($plan['mismo_dia'])->map(fn ($c) => \App\Enums\CargoEnum::from($c)->label())->implode(', ') }}, que se votaron en la misma jornada.</li>
-                @endif
-            </ul>
-            <p class="mt-3 text-xs text-slate-500">Nivel: alto con 4 puntos o más, medio con 2 o 3 (la subida del ganador vale 1, las demás 2). El histórico no trae nulos ni tarjetas no marcadas, que también serían señal.</p>
+            <div class="text-lg font-extrabold text-slate-900 mb-1">Cómo se ordena</div>
+            <div class="text-sm text-slate-600 space-y-2">
+                <p><b>Puntaje (0–100):</b> qué tan raro es el municipio frente a los demás del departamento en
+                    {{ collect(EstrategiaElectoral::METRICAS)->implode(', ') }}. Siempre da un orden, aunque nada sea extremo.</p>
+                <p><b>Alertas</b> (pesan más):</p>
+                <ul class="list-disc pl-5 space-y-1">
+                    <li>participación de 85 % o más;</li>
+                    @if ($plan['previo'])
+                        <li>votos que crecen 40 puntos más que el departamento ({{ $signo($plan['crecimiento_depto']) }}% entre {{ $plan['previo'] }} y {{ $plan['ultimo'] }});</li>
+                        <li>el partido ganador sube 40 puntos o más;</li>
+                    @endif
+                    <li>el ganador con 80 % o más;</li>
+                    @if ($plan['mismo_dia'])
+                        <li>15 % más o menos votos que {{ collect($plan['mismo_dia'])->map(fn ($c) => \App\Enums\CargoEnum::from($c)->label())->implode(', ') }}, votados el mismo día;</li>
+                    @endif
+                    @if ($plan['hay_nulos'])
+                        <li>nulos o no marcados del doble de la mediana del departamento (nulos: {{ $plan['mediana_nulos'] }}%).</li>
+                    @endif
+                </ul>
+            </div>
         </div>
     </div>
 
     <div class="{{ $tarjeta }} p-6">
-        <div class="text-lg font-extrabold text-slate-900">Todos los municipios</div>
-        <div class="text-xs text-slate-500 mb-4">De más a menos señales</div>
+        <div class="text-lg font-extrabold text-slate-900">Prioridad por municipio</div>
+        <div class="text-xs text-slate-500 mb-4">De más a menos prioridad</div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead class="text-left text-xs uppercase tracking-wider text-slate-400">
                     <tr>
+                        <th class="py-2 pr-4">#</th>
                         <th class="py-2 pr-4">Municipio</th>
                         <th class="py-2 px-3">Nivel</th>
-                        <th class="py-2 px-3 text-right">Votos</th>
-                        <th class="py-2 px-3 text-right">Participación</th>
+                        <th class="py-2 px-3 text-right">Puntaje</th>
+                        <th class="py-2 px-3 text-right">Mesas</th>
+                        @if ($plan['disponibles'])
+                            <th class="py-2 px-3 text-right">Testigos</th>
+                        @endif
+                        <th class="py-2 px-3 text-right">Particip.</th>
                         @if ($plan['previo'])
                             <th class="py-2 px-3 text-right">Votos vs {{ $plan['previo'] }}</th>
                         @endif
@@ -381,28 +416,87 @@
                         @if ($plan['mismo_dia'])
                             <th class="py-2 px-3 text-right">vs mismo día</th>
                         @endif
-                        <th class="py-2 px-3">Señales</th>
+                        @if ($plan['hay_nulos'])
+                            <th class="py-2 px-3 text-right">Nulos</th>
+                            <th class="py-2 px-3 text-right">No marc.</th>
+                        @endif
+                        <th class="py-2 px-3">Por qué</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
                     @foreach ($plan['municipios'] as $r)
                         <tr wire:key="ts-{{ $r['id'] }}">
+                            <td class="py-2 pr-4 text-slate-400 tabular-nums">{{ $r['prioridad'] }}</td>
                             <td class="py-2 pr-4 font-semibold text-slate-900">{{ $r['municipio'] }}</td>
                             <td class="py-2 px-3 text-xs font-semibold whitespace-nowrap" style="color: {{ EstrategiaElectoral::NIVELES[$r['nivel']][1] }}">{{ EstrategiaElectoral::NIVELES[$r['nivel']][0] }}</td>
-                            <td class="py-2 px-3 text-right tabular-nums">{{ $num($r['votos']) }}</td>
-                            <td class="py-2 px-3 text-right tabular-nums">{{ $r['participacion'] !== null ? $r['participacion'].'%' : '—' }}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold">{{ $r['puntaje'] }}</td>
+                            <td class="py-2 px-3 text-right tabular-nums">{{ $num($r['mesas']) }}</td>
+                            @if ($plan['disponibles'])
+                                <td class="py-2 px-3 text-right tabular-nums font-bold">{{ $r['testigos'] ? $num($r['testigos']) : '—' }}</td>
+                            @endif
+                            <td class="py-2 px-3 text-right tabular-nums {{ isset($r['senales']['participacion']) ? 'text-red-600 font-semibold' : '' }}">{{ $r['participacion'] !== null ? $r['participacion'].'%' : '—' }}</td>
                             @if ($plan['previo'])
-                                <td class="py-2 px-3 text-right tabular-nums">{{ $r['crecio'] !== null ? $signo($r['crecio']).'%' : '—' }}</td>
+                                <td class="py-2 px-3 text-right tabular-nums {{ isset($r['senales']['salto']) ? 'text-red-600 font-semibold' : '' }}">{{ $r['crecio'] !== null ? $signo($r['crecio']).'%' : '—' }}</td>
                             @endif
-                            <td class="py-2 px-3 text-right tabular-nums">{{ $r['pct_ganador'] }}%</td>
+                            <td class="py-2 px-3 text-right tabular-nums {{ isset($r['senales']['unanimidad']) ? 'text-red-600 font-semibold' : '' }}">{{ $r['pct_ganador'] }}%</td>
                             @if ($plan['mismo_dia'])
-                                <td class="py-2 px-3 text-right tabular-nums">{{ $r['diferencia_mismo_dia'] !== null ? $signo($r['diferencia_mismo_dia']).'%' : '—' }}</td>
+                                <td class="py-2 px-3 text-right tabular-nums {{ isset($r['senales']['mismo_dia']) ? 'text-red-600 font-semibold' : '' }}">{{ $r['diferencia_mismo_dia'] !== null ? $signo($r['diferencia_mismo_dia']).'%' : '—' }}</td>
                             @endif
-                            <td class="py-2 px-3 text-xs text-slate-600">{{ implode(' · ', $r['senales']) ?: '—' }}</td>
+                            @if ($plan['hay_nulos'])
+                                <td class="py-2 px-3 text-right tabular-nums {{ isset($r['senales']['nulos']) ? 'text-red-600 font-semibold' : '' }}">{{ $r['nulos_pct'] !== null ? $r['nulos_pct'].'%' : '—' }}</td>
+                                <td class="py-2 px-3 text-right tabular-nums {{ isset($r['senales']['no_marcados']) ? 'text-red-600 font-semibold' : '' }}">{{ $r['no_marcados_pct'] !== null ? $r['no_marcados_pct'].'%' : '—' }}</td>
+                            @endif
+                            <td class="py-2 px-3 text-xs text-slate-600">
+                                {{ implode(' · ', $r['senales']) }}
+                                @if ($r['atipicos'] && ! $r['senales'])
+                                    <span class="text-slate-500">Raro en: {{ implode(', ', $r['atipicos']) }}</span>
+                                @elseif (! $r['senales'])
+                                    —
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
         </div>
     </div>
+
+    @if ($plan['puestos'])
+        <div class="{{ $tarjeta }} p-6">
+            <div class="text-lg font-extrabold text-slate-900">Puestos para vigilar</div>
+            <div class="text-xs text-slate-500 mb-4">
+                Puestos con señales frente a su municipio: nulos o no marcados del doble del municipio, o ganador con 85 % o más.
+                El detalle de cada municipio está en "Puestos de votación".
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="text-left text-xs uppercase tracking-wider text-slate-400">
+                        <tr>
+                            <th class="py-2 pr-4">Puesto</th>
+                            <th class="py-2 px-3">Municipio</th>
+                            <th class="py-2 px-3 text-right">Mesas</th>
+                            <th class="py-2 px-3 text-right">Votos</th>
+                            <th class="py-2 px-3">Ganó</th>
+                            <th class="py-2 px-3">Señales</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        @foreach ($plan['puestos'] as $p)
+                            <tr wire:key="tp-{{ $p['id'] }}">
+                                <td class="py-2 pr-4">
+                                    <div class="font-semibold text-slate-900">{{ $p['nombre'] }}</div>
+                                    <div class="text-[11px] text-slate-400">Zona {{ $p['zona'] }} · puesto {{ $p['codigo'] }}</div>
+                                </td>
+                                <td class="py-2 px-3 text-xs">{{ $p['municipio'] }}</td>
+                                <td class="py-2 px-3 text-right tabular-nums">{{ $num($p['mesas']) }}</td>
+                                <td class="py-2 px-3 text-right tabular-nums">{{ $num($p['votos']) }}</td>
+                                <td class="py-2 px-3 text-xs text-slate-600">{{ $p['ganador_nombre'] }} {{ $p['pct_ganador'] }}%</td>
+                                <td class="py-2 px-3 text-xs text-red-600">{{ implode(' · ', $p['senales']) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
 @endif

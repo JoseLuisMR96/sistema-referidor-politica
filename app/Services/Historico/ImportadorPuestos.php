@@ -91,7 +91,8 @@ class ImportadorPuestos
         $puestosVistos = [];
 
         foreach ($filas as $f) {
-            [, $munId] = $this->lugar($f['departamento'], $f['municipio']);
+            // Del archivo exportado llega el municipio ya resuelto (por código DANE)
+            $munId = $f['municipio_id'] ?? $this->lugar($f['departamento'], $f['municipio'])[1];
             if (! $munId) {
                 $lugar = "{$f['departamento']} / {$f['municipio']}";
                 $resumen['sin_lugar'][$lugar] = ($resumen['sin_lugar'][$lugar] ?? 0) + 1;

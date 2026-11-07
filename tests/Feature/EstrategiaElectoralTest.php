@@ -133,6 +133,8 @@ class EstrategiaElectoralTest extends TestCase
             ->assertSee('Qué significa')
             ->assertSee('Líderes')
             ->call('verSeccion', 'testigos')
-            ->assertSee('no pruebas de fraude', false);
+            ->assertSee('no una prueba de fraude', false)
+            ->set('testigosDisponibles', 5)
+            ->assertSee('Con 5 testigos', false);
     }
 }

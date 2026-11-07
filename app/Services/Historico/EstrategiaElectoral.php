@@ -26,6 +26,7 @@ class EstrategiaElectoral
     public function __construct(
         private AnalisisElectoral $analisis,
         private PlanCampania $plan,
+        private AnalisisPuestos $puestos,
     ) {}
 
     private function recordar(string $metodo, array $args, \Closure $calcular): mixed
@@ -418,25 +419,26 @@ class EstrategiaElectoral
     // ===================== Testigos electorales =====================
 
     /**
-     * Señales de resultados atípicos por municipio en la última elección del
-     * cargo, para decidir dónde poner testigos. No prueban fraude: marcan
-     * dónde conviene mirar con más cuidado.
+     * Prioridad de testigos por municipio en la última elección del cargo.
      *
-     * - participación muy alta (sobre el potencial actual);
-     * - salto de votos frente a la elección anterior, mucho mayor que el del departamento;
-     * - casi unanimidad (el ganador con 80 % o más);
-     * - el ganador subió muchísimo frente a la anterior;
-     * - el mismo día, este cargo tuvo muchos más o menos votos que los otros
-     *   (gobernación, asamblea, alcaldía y concejo se votan juntos).
+     * Dos lecturas, ninguna prueba fraude:
+     * - Señales fijas (alertas): participación de 85 % o más, salto de votos,
+     *   casi unanimidad, subida del ganador, diferencia con los otros cargos
+     *   del mismo día, y nulos o no marcados muy altos (con datos por puesto).
+     * - Puntaje 0–100: qué tan raro es el municipio frente a los demás del
+     *   departamento en cada indicador (desviación robusta: mediana y MAD).
+     *   Así siempre hay un orden, aunque ninguno cruce una alerta.
+     *
+     * @param  int|null  $disponibles  testigos con que se cuenta: se reparten por mesa en orden de prioridad
      */
-    public function testigos(int $departamentoId, string $cargo): array
+    public function testigos(int $departamentoId, string $cargo, ?int $disponibles = null): array
     {
         $d = $this->analisis->datos($departamentoId, $cargo);
         $anios = $d['anios'];
         $ultimo = end($anios) ?: null;
         $previo = count($anios) > 1 ? $anios[count($anios) - 2] : null;
         if (! $ultimo) {
-            return ['ultimo' => null, 'municipios' => [], 'conteo' => []];
+            return ['ultimo' => null, 'municipios' => [], 'conteo' => [], 'puestos' => [], 'mismo_dia' => [], 'previo' => null];
         }
 
         // Otros cargos votados el mismo año (mismo día)
@@ -453,6 +455,8 @@ class EstrategiaElectoral
         }
 
         $crecDepto = $previo && ($d['totales'][$previo] ?? 0) ? ($d['totales'][$ultimo] - $d['totales'][$previo]) * 100 / $d['totales'][$previo] : null;
+        $mesas = DB::table('municipios')->where('departamento_id', $departamentoId)->pluck('mesas', 'id');
+        $noValidos = $this->noValidos($departamentoId, $cargo, $ultimo);
 
         $filas = [];
         foreach ($d['municipios'] as $m) {
@@ -472,63 +476,227 @@ class EstrategiaElectoral
             $pctGanador = $ganador ? round($votos[$ganador] * 100 / $total, 1) : null;
             $pctGanadorAntes = $ganador && $antes ? round(($m['partidos'][$ganador][$previo] ?? 0) * 100 / $antes, 1) : null;
 
-            $participacion = $m['potencial'] ? round($total * 100 / $m['potencial'], 1) : null;
-            $crecio = $antes ? round(($total - $antes) * 100 / $antes, 1) : null;
-
             $otros = [];
             foreach ($mismoDia as $otro => $ms) {
                 if ($v = ($ms[$m['id']]['total'][$ultimo] ?? 0)) {
                     $otros[$otro] = $v;
                 }
             }
-            $diferenciaMismoDia = $otros ? round(($total - array_sum($otros) / count($otros)) * 100 / (array_sum($otros) / count($otros)), 1) : null;
+            $promedioOtros = $otros ? array_sum($otros) / count($otros) : null;
+            $nv = $noValidos[$m['id']] ?? null;
+            $crecio = $antes ? round(($total - $antes) * 100 / $antes, 1) : null;
 
-            $senales = [];
-            if ($participacion !== null && $participacion >= 85) {
-                $senales['participacion'] = "Votó el {$participacion}% del potencial";
-            }
-            if ($crecio !== null && $crecDepto !== null && $crecio - $crecDepto >= 40 && $total >= 500) {
-                $senales['salto'] = "Los votos crecieron {$crecio}% (el departamento, ".round($crecDepto, 1).'%)';
-            }
-            if ($pctGanador !== null && $pctGanador >= 80 && count($votos) > 1) {
-                $senales['unanimidad'] = "El ganador sacó {$pctGanador}%";
-            }
-            // Solo si el partido ya se había presentado: las coaliciones nuevas siempre "suben" desde 0
-            if ($pctGanadorAntes && $pctGanador - $pctGanadorAntes >= 40) {
-                $senales['subida'] = "El ganador pasó de {$pctGanadorAntes}% a {$pctGanador}%";
-            }
-            if ($diferenciaMismoDia !== null && abs($diferenciaMismoDia) >= 15 && $total >= 500) {
-                $senales['mismo_dia'] = 'Votos '.($diferenciaMismoDia > 0 ? '+' : '')."{$diferenciaMismoDia}% frente a los otros cargos del mismo día";
-            }
-
-            $puntos = array_sum(array_intersect_key(self::PESOS_SENALES, $senales));
             $filas[] = [
                 'id' => $m['id'],
                 'municipio' => $m['nombre'],
                 'codigo_dane' => $m['codigo_dane'],
                 'potencial' => $m['potencial'],
+                'mesas' => isset($mesas[$m['id']]) ? (int) $mesas[$m['id']] : null,
                 'votos' => $total,
-                'participacion' => $participacion,
+                'participacion' => $m['potencial'] ? round($total * 100 / $m['potencial'], 1) : null,
                 'crecio' => $crecio,
                 'ganador_nombre' => $ganador ? ($d['partidos'][$ganador]['nombre'] ?? $ganador) : null,
                 'pct_ganador' => $pctGanador,
-                'diferencia_mismo_dia' => $diferenciaMismoDia,
-                'senales' => $senales,
-                'puntos' => $puntos,
-                'nivel' => $puntos >= 4 ? 'alto' : ($puntos >= 2 ? 'medio' : ($puntos > 0 ? 'bajo' : 'ninguno')),
+                'pct_ganador_antes' => $pctGanadorAntes,
+                'listas' => count($votos),
+                'diferencia_mismo_dia' => $promedioOtros ? round(($total - $promedioOtros) * 100 / $promedioOtros, 1) : null,
+                'nulos_pct' => $nv['nulos_pct'] ?? null,
+                'no_marcados_pct' => $nv['no_marcados_pct'] ?? null,
+                // Indicadores donde "más alto" es más raro, para el puntaje
+                'metricas' => [
+                    'participacion' => $m['potencial'] ? $total * 100 / $m['potencial'] : null,
+                    'salto' => $crecio !== null && $crecDepto !== null ? $crecio - $crecDepto : null,
+                    'unanimidad' => count($votos) > 1 ? $pctGanador : null,
+                    'mismo_dia' => $promedioOtros ? abs(($total - $promedioOtros) * 100 / $promedioOtros) : null,
+                    'nulos' => $nv['nulos_pct'] ?? null,
+                    'no_marcados' => $nv['no_marcados_pct'] ?? null,
+                ],
             ];
         }
-        usort($filas, fn ($a, $b) => [$b['puntos'], $b['votos']] <=> [$a['puntos'], $a['votos']]);
+
+        // Mediana y dispersión robusta de cada indicador en el departamento
+        $estadisticas = [];
+        foreach (array_keys(self::METRICAS) as $k) {
+            $valores = array_values(array_filter(array_column(array_column($filas, 'metricas'), $k), fn ($v) => $v !== null));
+            $estadisticas[$k] = self::robusta($valores);
+        }
+        $med = fn ($k) => round($estadisticas[$k]['mediana'] ?? 0, 1);
+
+        foreach ($filas as &$f) {
+            $senales = [];
+
+            if ($f['participacion'] !== null && $f['participacion'] >= 85) {
+                $senales['participacion'] = "Votó el {$f['participacion']}% del potencial";
+            }
+            if ($f['metricas']['salto'] !== null && $f['metricas']['salto'] >= 40 && $f['votos'] >= 500) {
+                $senales['salto'] = "Los votos crecieron {$f['crecio']}% (el departamento, ".round($crecDepto, 1).'%)';
+            }
+            if ($f['pct_ganador'] !== null && $f['pct_ganador'] >= 80 && $f['listas'] > 1) {
+                $senales['unanimidad'] = "El ganador sacó {$f['pct_ganador']}%";
+            }
+            // Solo si el partido ya se había presentado: las coaliciones nuevas siempre "suben" desde 0
+            if ($f['pct_ganador_antes'] && $f['pct_ganador'] - $f['pct_ganador_antes'] >= 40) {
+                $senales['subida'] = "El ganador pasó de {$f['pct_ganador_antes']}% a {$f['pct_ganador']}%";
+            }
+            if ($f['diferencia_mismo_dia'] !== null && abs($f['diferencia_mismo_dia']) >= 15 && $f['votos'] >= 500) {
+                $senales['mismo_dia'] = 'Votos '.($f['diferencia_mismo_dia'] > 0 ? '+' : '')."{$f['diferencia_mismo_dia']}% frente a los otros cargos del mismo día";
+            }
+            if ($f['nulos_pct'] !== null && $f['nulos_pct'] >= max(2 * $med('nulos'), $med('nulos') + 3) && $f['votos'] >= 500) {
+                $senales['nulos'] = "Nulos {$f['nulos_pct']}% (mediana del departamento {$med('nulos')}%)";
+            }
+            if ($f['no_marcados_pct'] !== null && $f['no_marcados_pct'] >= max(2 * $med('no_marcados'), $med('no_marcados') + 5) && $f['votos'] >= 500) {
+                $senales['no_marcados'] = "No marcados {$f['no_marcados_pct']}% (mediana {$med('no_marcados')}%)";
+            }
+
+            // Puntaje: suma de desviaciones hacia arriba (cada una hasta 4), sobre 8
+            $suma = 0;
+            $atipicos = [];
+            foreach (self::METRICAS as $k => $nombre) {
+                $v = $f['metricas'][$k];
+                $e = $estadisticas[$k];
+                if ($v === null || ! $e['escala']) {
+                    continue;
+                }
+                $z = ($v - $e['mediana']) / $e['escala'];
+                if ($z > 0) {
+                    $suma += min($z, 4);
+                }
+                if ($z >= 2) {
+                    $atipicos[] = $nombre;
+                }
+            }
+
+            $puntos = array_sum(array_intersect_key(self::PESOS_SENALES, $senales));
+            $f['puntaje'] = (int) round(100 * min(1, $suma / 8));
+            $f['senales'] = $senales;
+            $f['atipicos'] = $atipicos;
+            $f['puntos'] = $puntos;
+            $f['nivel'] = match (true) {
+                $puntos >= 4 || $f['puntaje'] >= 70 => 'alto',
+                $puntos >= 2 || $f['puntaje'] >= 45 => 'medio',
+                $puntos > 0 || $f['puntaje'] >= 25 => 'bajo',
+                default => 'ninguno',
+            };
+            unset($f['metricas'], $f['pct_ganador_antes'], $f['listas']);
+        }
+        unset($f);
+
+        usort($filas, fn ($a, $b) => [$b['puntos'] * 20 + $b['puntaje'], $b['votos']] <=> [$a['puntos'] * 20 + $a['puntaje'], $a['votos']]);
+
+        // Reparto de testigos: uno por mesa, en orden de prioridad
+        $restantes = (int) $disponibles;
+        foreach ($filas as $i => &$f) {
+            $f['prioridad'] = $i + 1;
+            $f['testigos'] = $disponibles !== null && $f['mesas'] ? min($f['mesas'], max(0, $restantes)) : null;
+            $restantes -= $f['testigos'] ?? 0;
+        }
+        unset($f);
+
+        $enRiesgo = collect($filas)->whereIn('nivel', ['alto', 'medio']);
 
         return [
             'ultimo' => $ultimo,
             'previo' => $previo,
             'crecimiento_depto' => $crecDepto !== null ? round($crecDepto, 1) : null,
             'mismo_dia' => array_keys($mismoDia),
+            'hay_nulos' => (bool) $noValidos,
+            'mediana_nulos' => $estadisticas['nulos']['mediana'] !== null ? $med('nulos') : null,
             'conteo' => collect($filas)->countBy('nivel')->all(),
+            'mesas' => array_sum(array_map(fn ($f) => $f['mesas'] ?? 0, $filas)),
+            'mesas_riesgo' => (int) $enRiesgo->sum('mesas'),
+            'disponibles' => $disponibles,
+            'cubiertas_riesgo' => $disponibles !== null ? (int) $enRiesgo->sum('testigos') : null,
             'municipios' => $filas,
+            'puestos' => $this->puestosVigilar($departamentoId, $cargo, $ultimo),
         ];
     }
+
+    /** Mediana y escala robusta (1,4826 × MAD; si es 0, la desviación estándar). */
+    public static function robusta(array $valores): array
+    {
+        if (count($valores) < 3) {
+            return ['mediana' => null, 'escala' => null];
+        }
+        $mediana = self::mediana($valores);
+        $escala = 1.4826 * self::mediana(array_map(fn ($v) => abs($v - $mediana), $valores));
+        if ($escala < 1e-9) {
+            $media = array_sum($valores) / count($valores);
+            $escala = sqrt(array_sum(array_map(fn ($v) => ($v - $media) ** 2, $valores)) / count($valores));
+        }
+
+        return ['mediana' => $mediana, 'escala' => $escala > 1e-9 ? $escala : null];
+    }
+
+    private static function mediana(array $v): float
+    {
+        sort($v);
+        $n = count($v);
+
+        return $n % 2 ? (float) $v[intdiv($n, 2)] : ($v[$n / 2 - 1] + $v[$n / 2]) / 2;
+    }
+
+    /**
+     * % de nulos y no marcados por municipio (sobre el total de tarjetas),
+     * desde los datos por puesto. Vacío si no están cargados.
+     *
+     * @return array<int, array{nulos_pct: float, no_marcados_pct: float}>
+     */
+    private function noValidos(int $departamentoId, string $cargo, int $anio): array
+    {
+        return $this->recordar('noValidos', [$departamentoId, $cargo, $anio], function () use ($departamentoId, $cargo, $anio) {
+            $filas = DB::table('historico_puestos as h')
+                ->join('municipios as m', 'm.id', '=', 'h.municipio_id')
+                ->where('m.departamento_id', $departamentoId)
+                ->where('h.cargo', $cargo)->where('h.anio', $anio)->where('h.vuelta', 1)
+                ->groupBy('h.municipio_id')
+                ->selectRaw('h.municipio_id, SUM(h.votos) as total,
+                    SUM(CASE WHEN h.partido = ? THEN h.votos ELSE 0 END) as nulos,
+                    SUM(CASE WHEN h.partido = ? THEN h.votos ELSE 0 END) as no_marcados', [ImportadorPuestos::NULOS, ImportadorPuestos::NO_MARCADOS])
+                ->get();
+
+            $out = [];
+            foreach ($filas as $f) {
+                if ($f->total > 0) {
+                    $out[(int) $f->municipio_id] = [
+                        'nulos_pct' => round($f->nulos * 100 / $f->total, 1),
+                        'no_marcados_pct' => round($f->no_marcados * 100 / $f->total, 1),
+                    ];
+                }
+            }
+
+            return $out;
+        });
+    }
+
+    /** Puestos del departamento con señales (de los municipios con datos por puesto). */
+    public function puestosVigilar(int $departamentoId, string $cargo, int $anio, int $limite = 25): array
+    {
+        $municipios = $this->puestos->municipios($departamentoId);
+        $lista = [];
+        foreach ($municipios as $munId => $mun) {
+            if (! in_array($anio, $this->puestos->cargos($munId)[$cargo] ?? [], true)) {
+                continue;
+            }
+            foreach ($this->puestos->puestos($munId, $cargo, $anio)['puestos'] as $p) {
+                if ($p['senales']) {
+                    $lista[] = $p + ['municipio' => $mun['nombre']];
+                }
+            }
+        }
+        usort($lista, fn ($a, $b) => [count($b['senales']), $b['votos']] <=> [count($a['senales']), $a['votos']]);
+
+        return array_slice($lista, 0, $limite);
+    }
+
+    /** Indicadores del puntaje (más alto = más raro). */
+    public const METRICAS = [
+        'participacion' => 'participación',
+        'salto' => 'crecimiento de votos',
+        'unanimidad' => '% del ganador',
+        'mismo_dia' => 'diferencia con los otros cargos del día',
+        'nulos' => 'votos nulos',
+        'no_marcados' => 'tarjetas no marcadas',
+    ];
 
     /** Cargos que se votan el mismo día (la presidencial va en otra fecha). */
     public const JORNADAS = [
@@ -543,6 +711,8 @@ class EstrategiaElectoral
         'unanimidad' => 2,
         'subida' => 1,
         'mismo_dia' => 2,
+        'nulos' => 2,
+        'no_marcados' => 2,
     ];
 
     public const NIVELES = [
