@@ -4,13 +4,15 @@ namespace App\Console\Commands;
 
 use App\Services\Historico\HistoricoElectoralStats;
 use App\Services\Historico\ImportadorHistorico;
+use App\Services\Historico\ImportadorPuestos;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Carga el potencial electoral (cédulas habilitadas) de cada municipio desde
  * el DIVIPOL de la Registraduría ("Estructuras Básicas"): suma hombres,
- * mujeres y mesas de todos los puestos del municipio.
+ * mujeres y mesas de todos los puestos del municipio. También llena el
+ * potencial de cada puesto (puestos_votacion).
  *
  *   php artisan municipios:potencial "ruta/DIVIPOL_….TXT" --anio=2026
  */
@@ -84,6 +86,10 @@ class CargarPotencialElectoralCommand extends Command
         foreach ($sinLugar as $l) {
             $this->warn("  Sin reconocer: {$l}");
         }
+
+        // El mismo archivo trae cada puesto: potencial y mesas por puesto
+        $p = app(ImportadorPuestos::class)->potencialDivipol($ruta, (int) $this->option('anio'));
+        $this->info(number_format($p['puestos'], 0, ',', '.').' puestos de votación con potencial.');
 
         return self::SUCCESS;
     }

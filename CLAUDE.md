@@ -206,6 +206,25 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
      - **Votos por conquistar:** se suman los que no votaron (potencial − votos válidos, aproximado) y el voto en blanco. Aparte se muestran los que votaron en la última presidencial (1.ª vuelta) pero no en este cargo.
      - **Disputa:** puntaje de 0 a 100: 60 % margen, 25 % cambio de bloque del ganador (si no hay bloque, cambio de partido = un cuarto) y 15 % volatilidad **entre bloques**. Por partido no sirve, porque las coaliciones cambian de nombre.
      - **Prioridades:** cada criterio se lleva a 0–1 y se pondera según el enfoque (`ENFOQUES`). Un criterio sin datos no pesa. Además sugiere una acción (`ACCIONES`). La afinidad usa el bloque del partido del candidato y se puede cambiar.
+  6. **Estrategia** ([EstrategiaElectoral](app/Services/Historico/EstrategiaElectoral.php), secciones 9 a 11; vista [analisis/estrategia.blade.php](resources/views/livewire/dashboard/analisis/estrategia.blade.php)):
+     - **Simulador de alianzas:**
+       - **Votos:** suma los partidos elegidos (`?aliados[]=`); el primero aporta el 100 % y los demás, el `?transferencia=`.
+       - **Resultado:** en uninominales, dónde gana. En corporaciones, curules separados frente a juntos, con `reparto()` (D'Hondt con umbral), en el departamento o en cada concejo.
+     - **Opinión frente a maquinaria:**
+       - **Comparación:** el % del partido en Senado (opinión) frente al promedio de concejo y asamblea (estructura local).
+       - **`tipo()`:** si una supera a la otra en 1,5 veces y 5 puntos.
+       - **Líderes:** `lideres()` da los candidatos más votados del cargo, con concentración (% en su municipio más fuerte) y cuántos municipios suman el 80 % de sus votos. Son candidatos públicos: nunca se lee la cédula.
+     - **Testigos electorales:**
+       - **Señales por municipio:** participación de 85 % o más; salto de votos 40 puntos sobre el del departamento; ganador con 80 % o más; ganador que sube 40 puntos (solo si su partido ya se había presentado); y 15 % de diferencia con los otros cargos de la misma jornada (`JORNADAS`: la presidencial es otro día).
+       - **Advertencia:** se presentan como señales, **no como pruebas de fraude**.
+  7. **Puestos de votación** ([AnalisisPuestos](app/Services/Historico/AnalisisPuestos.php), sección 12; vista [analisis/puestos.blade.php](resources/views/livewire/dashboard/analisis/puestos.blade.php)):
+     - **Tablas globales:** `puestos_votacion` (catálogo por municipio + zona + código, con potencial y mesas) y `historico_puestos` (votos por puesto y **partido**, sin candidatos).
+       - Blanco, nulos y no marcados van como partidos `VOTO EN BLANCO`, `VOTOS NULOS` y `VOTOS NO MARCADOS`. En `historico_electoral` no hay nulos.
+     - **Carga:**
+       - Votos: `php -d memory_limit=4G artisan historico:importar-puestos MMV_2023_NACIONAL.csv --anio=2023 --depto=META` ([comando](app/Console/Commands/ImportarPuestosCommand.php)). Usa los mesa a mesa territoriales con nombres (2019, 2023). Solo circunscripciones 1, 2 y 3. Sin `--depto`, carga todo el país (~800.000 filas por año). Reimportar reemplaza por año + cargo + municipio.
+       - Potencial por puesto: lo llena `municipios:potencial` desde el mismo DIVIPOL.
+     - **Qué muestra:** % del partido por puesto y cambio frente a la elección anterior. "Dónde crecer" son los votos que le faltan al partido para llegar a su promedio del municipio. También señales para testigos: nulos o no marcados del doble del municipio, participación de 90 % o más (solo con el potencial del mismo año, porque entre elecciones la gente cambia de puesto) y ganador con 85 % o más.
+     - **Pendiente:** el formulario de registro no pide puesto de votación, así que todavía no hay avance de registros por puesto.
 - **Partidos entre años:** [Partidos::clave()](app/Support/Partidos.php) agrupa las variantes de nombre ("Partido Social de Unidad Nacional" → "Partido de la U"). En 2023 el voto en blanco llega con partido "CANDIDATOS TOTALES" y se lleva a "VOTO EN BLANCO".
   - **Coaliciones aparte:** nombre con guion, que empieza por "Coalición" o que menciona dos o más partidos conocidos.
   - **Siglas (ASI, AICO, MAIS):** solo sirven para detectar coaliciones. Si no, "Así Ganamos Todos" caería en el ASI.

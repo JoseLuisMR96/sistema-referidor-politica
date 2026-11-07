@@ -40,7 +40,7 @@
             </select>
         </label>
 
-        @if ($seccion !== 'alcaldes')
+        @if (! in_array($seccion, ['alcaldes', 'puestos'], true))
             <label class="text-xs font-semibold text-slate-700">Cargo
                 <select wire:model.live="cargo" class="{{ $select }}">
                     @foreach ($cargos as $c)
@@ -74,6 +74,16 @@
                         <option value="{{ $clave }}">
                             {{ $p['nombre'] }}{{ $clave === $partidoCandidato ? ' · tu partido' : '' }} — {{ $num($p['votos']) }} votos ({{ implode(', ', array_keys(array_filter($p['por_anio']))) }})
                         </option>
+                    @endforeach
+                </select>
+            </label>
+        @endif
+
+        @if ($seccion === 'alianzas' && $plan)
+            <label class="text-xs font-semibold text-slate-700">Elección
+                <select wire:model.live="anio" class="{{ $select }}">
+                    @foreach ($plan['anios'] as $a)
+                        <option value="{{ $a }}">{{ $a }}</option>
                     @endforeach
                 </select>
             </label>
@@ -740,6 +750,12 @@
 
     {{-- ===== 5–8. Plan de campaña ===== --}}
     @include('livewire.dashboard.analisis.plan')
+
+    {{-- ===== 9–11. Estrategia ===== --}}
+    @include('livewire.dashboard.analisis.estrategia')
+
+    {{-- ===== 12. Puestos de votación ===== --}}
+    @include('livewire.dashboard.analisis.puestos')
 </div>
 
 @push('scripts')

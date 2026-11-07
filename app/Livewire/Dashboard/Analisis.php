@@ -7,6 +7,8 @@ use App\Models\Departamento;
 use App\Models\PartidoIdeologia;
 use App\Models\PublicRegistration;
 use App\Services\Historico\AnalisisElectoral;
+use App\Services\Historico\AnalisisPuestos;
+use App\Services\Historico\EstrategiaElectoral;
 use App\Services\Historico\HistoricoElectoralStats;
 use App\Services\Historico\PlanCampania;
 use App\Support\Partidos;
@@ -24,6 +26,8 @@ use Livewire\Component;
  *    gobernación en su municipio (coincidencia estadística, no prueba).
  * 5–8. Plan de campaña (PlanCampania): meta de votos y avance de los registros,
  *    votos por conquistar, municipios en disputa y orden de prioridades.
+ * 9–11. Estrategia (EstrategiaElectoral): simulador de alianzas, voto de opinión
+ *    frente a estructura local (con los líderes) y testigos electorales.
  */
 class Analisis extends Component
 {
@@ -36,6 +40,20 @@ class Analisis extends Component
         'conquistar' => 'Votos por conquistar',
         'disputa' => 'Municipios en disputa',
         'prioridades' => 'Prioridades',
+        'alianzas' => 'Simulador de alianzas',
+        'maquinaria' => 'Opinión y maquinaria',
+        'testigos' => 'Testigos electorales',
+        'puestos' => 'Puestos de votación',
+    ];
+
+    /** Puestos: orden de la tabla */
+    public const ORDEN_PUESTOS = [
+        'votos' => 'Más votos',
+        'pct_partido' => 'Más fuerte el partido',
+        'brecha' => 'Dónde crecer',
+        'cambio' => 'Más subió el partido',
+        'senales' => 'Señales para testigos',
+        'participacion' => 'Más participación',
     ];
 
     /** Secciones que todavía no están hechas */
@@ -79,6 +97,29 @@ class Analisis extends Component
     /** Prioridades: bloque del candidato para medir afinidad ('' = ninguno) */
     #[Url]
     public ?string $afinidad = null;
+
+    /** Alianzas: partidos de la alianza (claves); el primero es el principal */
+    #[Url(as: 'aliados')]
+    public array $aliados = [];
+
+    /** Alianzas: % de los votos de los socios que se pasan a la alianza */
+    #[Url]
+    public int $transferencia = 80;
+
+    /** Opinión y maquinaria: partido elegido */
+    #[Url(as: 'pm')]
+    public ?string $partidoMaq = null;
+
+    /** Líderes: solo los del partido elegido */
+    public bool $soloPartido = false;
+
+    /** Puestos: municipio */
+    #[Url(as: 'mun')]
+    public ?int $municipioId = null;
+
+    /** Puestos: orden de la tabla (ORDEN_PUESTOS) */
+    #[Url(as: 'op')]
+    public string $ordenPuestos = 'votos';
 
     /** Filtro de la tabla de clasificación de partidos */
     public string $buscarPartido = '';
@@ -138,6 +179,24 @@ class Analisis extends Component
         // La meta y las curules a mano son de un cargo
         $this->metaManual = null;
         $this->curulesManual = null;
+    }
+
+    /** Alianzas: agrega o quita un partido (hasta 8). */
+    public function alternarAliado(string $clave): void
+    {
+        if (in_array($clave, $this->aliados, true)) {
+            $this->aliados = array_values(array_diff($this->aliados, [$clave]));
+        } elseif (count($this->aliados) < 8 && mb_strlen($clave) <= 191) {
+            $this->aliados[] = $clave;
+        }
+    }
+
+    /** Alianzas: pone un partido como principal (aporta todos sus votos). */
+    public function principal(string $clave): void
+    {
+        if (in_array($clave, $this->aliados, true)) {
+            $this->aliados = array_values([$clave, ...array_diff($this->aliados, [$clave])]);
+        }
     }
 
     /**
@@ -265,6 +324,14 @@ class Analisis extends Component
             [$plan, $mapa] = $this->plan(app(PlanCampania::class), $departamento);
         }
 
+        if ($datos && in_array($this->seccion, ['alianzas', 'maquinaria', 'testigos'], true)) {
+            [$plan, $mapa] = $this->estrategia(app(EstrategiaElectoral::class), $departamento, $datos);
+        }
+
+        if ($departamento && $this->seccion === 'puestos') {
+            $plan = $this->puestos(app(AnalisisPuestos::class), $departamento);
+        }
+
         $this->dispatch('analisis-mapa', mapa: $mapa);
 
         return view('livewire.dashboard.analisis', [
@@ -284,6 +351,156 @@ class Analisis extends Component
             'partidoCandidato' => app(TenantContext::class)->tenant()?->partido
                 ? Partidos::clave(app(TenantContext::class)->tenant()->partido) : null,
         ])->title('Análisis electoral');
+    }
+
+    /**
+     * Sección 12: puestos de un municipio. Si el cargo elegido no tiene datos
+     * por puesto, se pasa a uno que sí (primero el del candidato).
+     */
+    private function puestos(AnalisisPuestos $p, Departamento $departamento): ?array
+    {
+        $municipios = $p->municipios($departamento->id);
+        if (! $municipios) {
+            return ['municipios' => [], 'datos' => null];
+        }
+
+        $tenant = app(TenantContext::class)->tenant();
+        if (! isset($municipios[$this->municipioId])) {
+            $this->municipioId = isset($municipios[$tenant?->municipio_id]) ? $tenant->municipio_id : array_key_first($municipios);
+        }
+
+        $cargos = $p->cargos($this->municipioId);
+        if (! isset($cargos[$this->cargo])) {
+            $this->cargo = collect([$tenant?->cargo?->value, 'gobernacion', 'alcaldia'])->first(fn ($c) => isset($cargos[$c])) ?? array_key_first($cargos);
+        }
+        if (! in_array($this->anio, $cargos[$this->cargo], true)) {
+            $this->anio = end($cargos[$this->cargo]);
+        }
+        if (! array_key_exists($this->ordenPuestos, self::ORDEN_PUESTOS)) {
+            $this->ordenPuestos = 'votos';
+        }
+
+        $preferido = $this->partido ?? ($tenant?->partido ? Partidos::clave($tenant->partido) : null);
+        $datos = $p->puestos($this->municipioId, $this->cargo, $this->anio, $preferido);
+        $this->partido = $datos['clave'];
+
+        $valor = fn ($r) => match ($this->ordenPuestos) {
+            'pct_partido' => $r['pct_partido'] ?? -1,
+            'brecha' => $r['brecha'],
+            'cambio' => $r['cambio'] ?? -INF,
+            'senales' => [count($r['senales']), $r['votos']],
+            'participacion' => $r['participacion'] ?? -1,
+            default => $r['votos'],
+        };
+        usort($datos['puestos'], fn ($a, $b) => $valor($b) <=> $valor($a));
+
+        return ['municipios' => $municipios, 'cargos' => array_keys($cargos), 'datos' => $datos];
+    }
+
+    /** Secciones 9–11: datos y mapa. */
+    private function estrategia(EstrategiaElectoral $e, Departamento $departamento, array $datos): array
+    {
+        $tenantPartido = app(TenantContext::class)->tenant()?->partido;
+        $clavePropia = $tenantPartido ? Partidos::clave($tenantPartido) : null;
+
+        switch ($this->seccion) {
+            case 'alianzas':
+                if (! in_array($this->anio, $datos['anios'], true)) {
+                    $this->anio = end($datos['anios']);
+                }
+                $conVotos = fn ($c) => ($datos['partidos'][$c]['por_anio'][$this->anio] ?? 0) > 0;
+                $this->aliados = array_values(array_filter($this->aliados, fn ($c) => is_string($c) && $conVotos($c)));
+                if (! $this->aliados && $clavePropia && $conVotos($clavePropia)) {
+                    $this->aliados = [$clavePropia];
+                }
+                $this->transferencia = max(0, min(100, $this->transferencia));
+                $this->curulesManual = $this->curulesManual > 0 ? min($this->curulesManual, 120) : null;
+
+                $a = $this->aliados
+                    ? $e->alianza($departamento->id, $this->cargo, $this->anio, $this->aliados, $this->transferencia, $this->curulesManual)
+                    : null;
+                $buscar = HistoricoElectoralStats::normalizar(trim($this->buscarPartido));
+                $opciones = collect($datos['partidos'])
+                    ->filter(fn ($p, $c) => $c !== 'VOTO EN BLANCO' && $conVotos($c))
+                    ->filter(fn ($p, $c) => in_array($c, $this->aliados, true) || $buscar === ''
+                        || str_contains(HistoricoElectoralStats::normalizar($p['nombre'].' '.$c), $buscar))
+                    ->sortByDesc(fn ($p) => $p['por_anio'][$this->anio])
+                    ->take(40)
+                    ->map(fn ($p, $c) => ['clave' => $c, 'nombre' => $p['nombre'], 'votos' => $p['por_anio'][$this->anio], 'propio' => $c === $clavePropia])
+                    ->values()->all();
+
+                return [['alianza' => $a, 'opciones' => $opciones, 'anios' => $datos['anios']], $a ? $this->mapaAlianza($departamento, $a) : null];
+
+            case 'maquinaria':
+                $partidos = $e->partidosMaquinaria($departamento->id);
+                if (! isset($partidos[$this->partidoMaq])) {
+                    $this->partidoMaq = $clavePropia && isset($partidos[$clavePropia]) ? $clavePropia : array_key_first($partidos);
+                }
+                $m = $this->partidoMaq ? $e->maquinaria($departamento->id, $this->partidoMaq) : null;
+                $lideres = $e->lideres($departamento->id, $this->cargo, $this->soloPartido ? $this->partidoMaq : null);
+
+                return [['maquinaria' => $m, 'partidos' => $partidos, 'lideres' => $lideres], $m ? $this->mapaMaquinaria($departamento, $m) : null];
+
+            default:
+                $t = $e->testigos($departamento->id, $this->cargo);
+
+                return [$t, $this->mapaTestigos($departamento, $t)];
+        }
+    }
+
+    /** Verde donde gana la alianza, rojo donde pierde; intensidad según el margen. */
+    private function mapaAlianza(Departamento $departamento, array $a): array
+    {
+        $n = fn ($v) => number_format((int) $v, 0, ',', '.');
+
+        return [
+            'geo' => $this->geo($departamento),
+            'municipios' => collect($a['municipios'])->filter(fn ($r) => $r['codigo_dane'])
+                ->mapWithKeys(fn ($r) => [$r['codigo_dane'] => [
+                    'color' => $r['gana'] ? '#16a34a' : '#dc2626',
+                    'opacidad' => round(0.15 + 0.75 * min(1, abs($r['margen']) / 30), 2),
+                    'lineas' => [
+                        $r['municipio'],
+                        'Alianza: '.$n($r['votos'])." ({$r['porcentaje']}%)",
+                        $r['rival_nombre'] ? 'Mejor rival: '.$r['rival_nombre'].' '.$n($r['rival_votos']) : '',
+                        $r['gana'] ? ($r['ganaba'] ? 'Ya ganaba' : 'Gana gracias a la alianza') : 'Le faltan '.$n($r['falta']).' votos',
+                    ],
+                ]])->all(),
+        ];
+    }
+
+    /** Color según el carácter del voto; intensidad según la diferencia. */
+    private function mapaMaquinaria(Departamento $departamento, array $m): array
+    {
+        $maximo = max(1, (float) collect($m['municipios'])->max(fn ($r) => abs($r['diferencia'] ?? 0)));
+
+        return [
+            'geo' => $this->geo($departamento),
+            'municipios' => collect($m['municipios'])->filter(fn ($r) => $r['codigo_dane'])
+                ->mapWithKeys(fn ($r) => [$r['codigo_dane'] => [
+                    'color' => EstrategiaElectoral::TIPOS[$r['tipo']][2],
+                    'opacidad' => $r['tipo'] === 'ausente' ? 0.3 : round(0.2 + 0.7 * abs($r['diferencia'] ?? 0) / $maximo, 2),
+                    'lineas' => [
+                        $r['municipio'],
+                        EstrategiaElectoral::TIPOS[$r['tipo']][0],
+                        'Senado: '.($r['opinion'] ?? '—').'% · local: '.($r['estructura'] ?? '—').'%',
+                    ],
+                ]])->all(),
+        ];
+    }
+
+    /** Color según el nivel de alerta. */
+    private function mapaTestigos(Departamento $departamento, array $t): array
+    {
+        return [
+            'geo' => $this->geo($departamento),
+            'municipios' => collect($t['municipios'])->filter(fn ($r) => $r['codigo_dane'])
+                ->mapWithKeys(fn ($r) => [$r['codigo_dane'] => [
+                    'color' => EstrategiaElectoral::NIVELES[$r['nivel']][1],
+                    'opacidad' => $r['nivel'] === 'ninguno' ? 0.15 : 0.75,
+                    'lineas' => [$r['municipio'], 'Nivel: '.EstrategiaElectoral::NIVELES[$r['nivel']][0], ...array_values($r['senales'])],
+                ]])->all(),
+        ];
     }
 
     /** Secciones 5–8: datos y mapa. */
