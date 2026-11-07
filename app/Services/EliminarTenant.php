@@ -41,6 +41,10 @@ class EliminarTenant
         'redes_tono' => 'Tono de comentarios',
         'redes_metricas' => 'Métricas de redes',
         'redes_cuentas' => 'Cuentas de redes',
+        // evento_integrante cae por CASCADE con los eventos
+        'evidencias_evento' => 'Evidencias de eventos',
+        'eventos_campana' => 'Eventos de campaña',
+        'equipo_campana' => 'Equipo de campaña',
     ];
 
     /** Cuántos datos se borrarían, solo lo que tiene filas. */
@@ -82,6 +86,9 @@ class EliminarTenant
 
             $tenant->delete();
         });
+
+        // Fotos y soportes de sus eventos (disco privado)
+        Storage::disk('local')->deleteDirectory("eventos/{$tenant->id}");
 
         foreach ([$tenant->logo_path, $tenant->foto_path, $tenant->fondo_path] as $ruta) {
             if ($ruta) {

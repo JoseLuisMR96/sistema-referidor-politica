@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\ReferidoresPregonerosMasivoExportController;
 use App\Http\Controllers\Admin\ReferidosPregonerosExportController;
 use App\Http\Controllers\DashboardExportController;
+use App\Http\Controllers\EvidenciaEventoController;
 use App\Http\Controllers\Exports\PublicRegistrationsExportController;
 use App\Http\Controllers\MarcaArchivoController;
 use App\Http\Controllers\ProfileController;
@@ -24,6 +25,10 @@ use App\Livewire\Dashboard\Analisis as DashboardAnalisis;
 use App\Livewire\Dashboard\Historico as DashboardHistorico;
 use App\Livewire\Dashboard\Redes as DashboardRedes;
 use App\Livewire\Dashboard\Stats;
+use App\Livewire\Eventos\Equipo as EventosEquipo;
+use App\Livewire\Eventos\Formulario as EventosFormulario;
+use App\Livewire\Eventos\Index as EventosIndex;
+use App\Livewire\Eventos\Show as EventosShow;
 use App\Livewire\ImportedPeople\Index as ImportedPeopleIndex;
 use App\Livewire\ImportedPeople\Show as ImportedPeopleShow;
 use App\Livewire\Public\ReferirPregonero;
@@ -209,6 +214,37 @@ Route::middleware(['auth'])->group(function () {
     | Tenants (candidatos)
     |----------------------------------------------------------------------
     */
+    /*
+    |----------------------------------------------------------------------
+    | Eventos de campaña (trazabilidad en territorio) y equipo
+    |----------------------------------------------------------------------
+    | Los modelos llevan el scope del tenant: el evento o la evidencia de
+    | otro candidato da 404.
+    */
+    Route::get('/eventos', EventosIndex::class)
+        ->middleware('permission:eventos.ver')
+        ->name('eventos.index');
+
+    Route::get('/eventos/crear', EventosFormulario::class)
+        ->middleware('permission:eventos.crear')
+        ->name('eventos.create');
+
+    Route::get('/eventos/evidencias/{evidencia}', EvidenciaEventoController::class)
+        ->middleware('permission:eventos.ver')
+        ->name('eventos.evidencia');
+
+    Route::get('/eventos/{evento}', EventosShow::class)
+        ->middleware('permission:eventos.ver')
+        ->name('eventos.show');
+
+    Route::get('/eventos/{evento}/editar', EventosFormulario::class)
+        ->middleware('permission:eventos.editar')
+        ->name('eventos.edit');
+
+    Route::get('/equipo-campana', EventosEquipo::class)
+        ->middleware('permission:eventos.ver|equipo.gestionar')
+        ->name('equipo.index');
+
     // Selector del menú (solo usuarios globales; se valida en el controller)
     Route::post('/tenant/seleccionar', TenantSwitchController::class)
         ->name('tenant.seleccionar');

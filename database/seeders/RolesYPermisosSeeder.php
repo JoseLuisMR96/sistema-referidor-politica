@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 class RolesYPermisosSeeder extends Seeder
@@ -68,6 +68,13 @@ class RolesYPermisosSeeder extends Seeder
             'historico.ver',
             'historico.importar',
 
+            // Eventos de campaña (trazabilidad en territorio) y su equipo
+            'eventos.ver',
+            'eventos.crear',
+            'eventos.editar',
+            'eventos.eliminar',
+            'equipo.gestionar',
+
         ];
 
         // 1) Crear/actualizar permisos (idempotente)
@@ -100,6 +107,10 @@ class RolesYPermisosSeeder extends Seeder
             'dashboard.exportar',
             'redes.ver',
             'historico.ver',
+            'eventos.ver',
+            'eventos.crear',
+            'eventos.editar',
+            'equipo.gestionar',
         ]);
 
         $rolAnalista->syncPermissions([
@@ -112,6 +123,7 @@ class RolesYPermisosSeeder extends Seeder
             'dashboard.exportar',
             'redes.ver',
             'historico.ver',
+            'eventos.ver',
         ]);
 
         // Referidor: crea registros y ve los suyos
