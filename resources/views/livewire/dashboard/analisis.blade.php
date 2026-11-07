@@ -737,6 +737,9 @@
             </div>
         @endif
     @endif
+
+    {{-- ===== 5–8. Plan de campaña ===== --}}
+    @include('livewire.dashboard.analisis.plan')
 </div>
 
 @push('scripts')
