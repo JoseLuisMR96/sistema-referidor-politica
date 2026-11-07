@@ -186,9 +186,12 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
 - **Secciones:**
   1. **Fortines:** % y votos de un partido por municipio y año, cambio entre elecciones y dónde ganó.
   2. **Tamaño de los municipios:** potencial electoral, peso en el departamento, mujeres, mesas y participación aproximada (votos válidos sobre potencial).
-  3. **Tendencia** (izquierda, centro o derecha, con tabla editable): pendiente.
+  3. **Tendencia:** por municipio y año, el bloque (izquierda, centro, derecha) del partido ganador, el reparto de votos por bloque, los municipios que cambiaron de bloque y un índice de −2 a +2. El voto en blanco no cuenta.
+     - **Tabla `partidos_ideologia`** (global, por `Partidos::clave()`), con 5 valores: izquierda, centro_izquierda, centro, centro_derecha, derecha. La migración la llena con una clasificación inicial (Wikipedia y prensa) y se edita en la misma pantalla. Solo usuarios **globales** con `historico.importar`.
+     - **Coaliciones sin clasificar:** `AnalisisElectoral::inferir()` toma la de sus partidos si todos caen en el mismo bloque; si no, quedan "sin clasificar".
+     - `tendencia()` no va en caché (la clasificación cambia); `datos()` sí. Si cambias `Partidos::clave()`, sube `AnalisisElectoral::VERSION_CALCULO`.
   4. **Alcaldes y gobernación:** el alcalde en funciones (elegido 4 años antes) frente a lo que sacó cada candidato a gobernación en su municipio. Pendiente. Se presenta como **coincidencia estadística**, no como prueba de participación en política.
-- **Partidos entre años:** [Partidos::clave()](app/Support/Partidos.php) agrupa las variantes de nombre ("Partido Social de Unidad Nacional" → "Partido de la U").
+- **Partidos entre años:** [Partidos::clave()](app/Support/Partidos.php) agrupa las variantes de nombre ("Partido Social de Unidad Nacional" → "Partido de la U"). En 2023 el voto en blanco llega con partido "CANDIDATOS TOTALES" y se lleva a "VOTO EN BLANCO".
   - **Coaliciones aparte:** nombre con guion, que empieza por "Coalición" o que menciona dos o más partidos conocidos.
   - **Siglas (ASI, AICO, MAIS):** solo sirven para detectar coaliciones. Si no, "Así Ganamos Todos" caería en el ASI.
 - **Potencial electoral:** `municipios.potencial_electoral` (y mujeres, hombres, mesas, año) se carga con `php artisan municipios:potencial <DIVIPOL.TXT> --anio=2026` ([comando](app/Console/Commands/CargarPotencialElectoralCommand.php)). El DIVIPOL viene en los archivos básicos de la Registraduría.

@@ -22,6 +22,8 @@ class Partidos
     /** Fragmento del nombre normalizado => clave del partido. El orden importa. */
     private const CONOCIDOS = [
         'VOTO EN BLANCO' => 'VOTO EN BLANCO',
+        // En 2023 la Registraduría puso el voto en blanco bajo este "partido"
+        'CANDIDATOS TOTALES' => 'VOTO EN BLANCO',
         'DE LA U' => 'PARTIDO DE LA U',
         'SOCIAL DE UNIDAD NACIONAL' => 'PARTIDO DE LA U',
         'SOCIAL DE LA UNIDAD NACIONAL' => 'PARTIDO DE LA U',
@@ -41,6 +43,7 @@ class Partidos
         'COLOMBIA JUSTA LIBRES' => 'COLOMBIA JUSTA LIBRES',
         'SALVACION NACIONAL' => 'SALVACIÓN NACIONAL',
         'LIGA DE GOBERNANTES ANTICORRUPCION' => 'LIGA DE GOBERNANTES ANTICORRUPCIÓN',
+        'LIGA GOBERNANTES ANTICORRUPCION' => 'LIGA DE GOBERNANTES ANTICORRUPCIÓN',
         'DEFENSORES DE LA PATRIA' => 'DEFENSORES DE LA PATRIA',
         'DIGNIDAD' => 'DIGNIDAD & COMPROMISO',
         'COMUNES' => 'COMUNES',
@@ -75,6 +78,12 @@ class Partidos
         return trim(preg_replace('/^(PARTIDO|MOVIMIENTO)( POLITICO)?\s+/', '', $normalizado)) ?: $normalizado;
     }
 
+    /** Partidos conocidos que forman una coalición (incluye las siglas AICO, MAIS, ASI). */
+    public static function miembros(string $nombre): array
+    {
+        return array_keys(self::encontrados(HistoricoElectoralStats::normalizar($nombre), true));
+    }
+
     /** ¿Es una coalición o lista con nombre propio que no es un partido solo? */
     public static function esCoalicion(string $nombre): bool
     {
@@ -84,8 +93,16 @@ class Partidos
             return true;
         }
 
-        // El nombre oficial reciente de La U lleva guion ("… POR LA GENTE - PARTIDO DE LA U")
-        return str_contains((string) $nombre, '-') && ! str_ends_with($n, 'PARTIDO DE LA U');
+        if (! str_contains((string) $nombre, '-')) {
+            return false;
+        }
+
+        // El nombre oficial reciente de La U lleva guion ("… POR LA GENTE - PARTIDO DE LA U"),
+        // y otros repiten su sigla tras el guion ("PARTIDO LIGA GOBERNANTES ANTICORRUPCIÓN - LIGA").
+        $partes = array_map('trim', explode('-', (string) $nombre));
+        $sigla = count($partes) === 2 && min(array_map('mb_strlen', $partes)) <= 6;
+
+        return ! str_ends_with($n, 'PARTIDO DE LA U') && ! $sigla;
     }
 
     /** Clave estable del partido (o el nombre limpio, si es coalición o desconocido). */

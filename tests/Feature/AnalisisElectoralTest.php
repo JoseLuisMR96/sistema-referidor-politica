@@ -86,6 +86,24 @@ class AnalisisElectoralTest extends TestCase
         $this->assertSame(2, $f['departamento'][2023]['ganados']);
     }
 
+    public function test_un_partido_que_no_fue_en_la_ultima_eleccion_usa_su_ultima(): void
+    {
+        $this->cargar();
+        app(ImportadorHistorico::class)->guardar([
+            $this->votos(2015, 'VILLAVICENCIO', 'POLO DEMOCRATICO ALTERNATIVO', 90),
+            $this->votos(2015, 'VILLAVICENCIO', 'PARTIDO LIBERAL COLOMBIANO', 10),
+        ]);
+
+        $f = app(AnalisisElectoral::class)->fortines($this->meta->id, 'concejo', 'POLO DEMOCRÁTICO');
+
+        $this->assertSame(2015, $f['ultimo']);
+        $this->assertSame(2023, $f['ultimo_depto']);
+        $villavo = collect($f['municipios'])->firstWhere('id', $this->villavo->id);
+        $this->assertSame(90.0, $villavo['por_anio'][2015]['porcentaje']);
+        $this->assertFalse($villavo['por_anio'][2023]['participo']);
+        $this->assertSame('LIGA DE GOBERNANTES ANTICORRUPCIÓN', Partidos::clave('PARTIDO LIGA GOBERNANTES ANTICORRUPCIÓN - LIGA'));
+    }
+
     public function test_municipios_calcula_peso_y_participacion(): void
     {
         $this->cargar();
@@ -114,6 +132,64 @@ class AnalisisElectoralTest extends TestCase
         $this->assertSame(1100, $v->potencial_electoral);
         $this->assertSame(660, $v->potencial_mujeres);
         $this->assertSame(4, $v->mesas);
+    }
+
+    public function test_tendencia_reparte_bloques_y_detecta_giros(): void
+    {
+        $this->cargar();
+        // La migración ya clasifica Liberal (centro-izquierda) y la U (centro-derecha);
+        // la coalición Liberal-Verde empieza sin clasificar.
+        $t = app(AnalisisElectoral::class)->tendencia($this->meta->id, 'concejo');
+
+        $villavo = collect($t['municipios'])->firstWhere('id', $this->villavo->id);
+        $this->assertSame('PARTIDO LIBERAL', $villavo['por_anio'][2019]['ganador']);
+        $this->assertSame('izquierda', $villavo['por_anio'][2019]['bloque']);
+        $this->assertSame('derecha', $villavo['por_anio'][2023]['bloque']);
+        $this->assertTrue($villavo['giro']);
+        $this->assertSame(70.0, $villavo['por_anio'][2019]['porcentaje']['izquierda']);
+        // Índice 2023: (600·1 + 400·−1) / 1.000 = 0,2; en 2019: (300 − 700) / 1.000 = −0,4
+        $this->assertSame(0.6, $villavo['cambio_indice']);
+
+        // La coalición Liberal - Alianza Verde se infiere centro-izquierda (mismo bloque)
+        $granada = collect($t['municipios'])->firstWhere('id', $this->granada->id);
+        $this->assertSame(20.0, $granada['por_anio'][2023]['porcentaje']['izquierda']);
+        $this->assertSame(['LIBERAL PARTIDO ALIANZA VERDE' => 'centro_izquierda'], $t['inferidas']);
+        $this->assertSame([], $t['sin_clasificar']);
+        $this->assertSame(2, $t['departamento'][2023]['ganados']['derecha']);
+    }
+
+    public function test_coalicion_mixta_no_se_infiere_y_el_blanco_de_2023_es_blanco(): void
+    {
+        $ideologias = ['PARTIDO LIBERAL' => 'centro_izquierda', 'PARTIDO CONSERVADOR' => 'derecha', 'CENTRO DEMOCRÁTICO' => 'derecha'];
+
+        $this->assertNull(AnalisisElectoral::inferir('PARTIDO LIBERAL - PARTIDO CONSERVADOR', $ideologias));
+        $this->assertSame('derecha', AnalisisElectoral::inferir('COALICIÓN CENTRO DEMOCRÁTICO Y PARTIDO CONSERVADOR', $ideologias));
+        $this->assertNull(AnalisisElectoral::inferir('FE Y FIRMEZA', $ideologias));
+        $this->assertSame('VOTO EN BLANCO', Partidos::clave('CANDIDATOS TOTALES'));
+    }
+
+    public function test_solo_un_usuario_global_clasifica_partidos(): void
+    {
+        $this->cargar();
+        $admin = User::factory()->create(['tenant_id' => null]);
+        $admin->assignRole('Administrador');
+
+        Livewire::actingAs($admin)
+            ->test(Analisis::class, ['departamentoId' => $this->meta->id, 'seccion' => 'tendencia'])
+            ->assertSee('Ideología de los partidos')
+            ->call('clasificar', 'LIBERAL PARTIDO ALIANZA VERDE', 'centro')
+            ->call('anotar', 'LIBERAL PARTIDO ALIANZA VERDE', 'Coalición local')
+            ->call('clasificar', 'MIRA', '');
+
+        $this->assertDatabaseHas('partidos_ideologia', ['clave' => 'LIBERAL PARTIDO ALIANZA VERDE', 'ideologia' => 'centro', 'nota' => 'Coalición local']);
+        $this->assertDatabaseMissing('partidos_ideologia', ['clave' => 'MIRA']);
+
+        $analista = User::factory()->create(['tenant_id' => null]);
+        $analista->assignRole('Analista');
+        Livewire::actingAs($analista)
+            ->test(Analisis::class, ['departamentoId' => $this->meta->id, 'seccion' => 'tendencia'])
+            ->call('clasificar', 'PARTIDO LIBERAL', 'derecha')
+            ->assertForbidden();
     }
 
     public function test_la_pantalla_carga_y_exige_permiso(): void
