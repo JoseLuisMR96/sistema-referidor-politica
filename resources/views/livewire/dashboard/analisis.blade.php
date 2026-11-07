@@ -53,8 +53,18 @@
                 <select wire:model.live="partido" class="{{ $select }}">
                     @foreach ($partidos as $clave => $p)
                         <option value="{{ $clave }}">
-                            {{ $p['nombre'] }}{{ $clave === $partidoCandidato ? ' · tu partido' : '' }} — {{ $num($p['votos']) }} votos
+                            {{ $p['nombre'] }}{{ $clave === $partidoCandidato ? ' · tu partido' : '' }} — {{ $num($p['votos']) }} votos ({{ implode(', ', array_keys(array_filter($p['por_anio']))) }})
                         </option>
+                    @endforeach
+                </select>
+            </label>
+        @endif
+
+        @if ($seccion === 'tendencia' && $tendencia)
+            <label class="text-xs font-semibold text-slate-700">Año del mapa
+                <select wire:model.live="anio" class="{{ $select }}">
+                    @foreach ($tendencia['anios'] as $a)
+                        <option value="{{ $a }}">{{ $a }}</option>
                     @endforeach
                 </select>
             </label>
@@ -73,13 +83,24 @@
     @if ($seccion === 'fortines' && $fortines && $fortines['partido'])
         @php($u = $fortines['ultimo'])
 
+        @if ($u !== $fortines['ultimo_depto'])
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {{ $fortines['partido']['nombre'] }} no tuvo candidato en {{ $fortines['ultimo_depto'] }}.
+                El mapa y los rankings muestran {{ $u }}, su última elección en {{ $departamento->nombre }}.
+            </div>
+        @endif
+
         <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
             @foreach ($fortines['anios'] as $a)
                 @php($d = $fortines['departamento'][$a])
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 {{ $d['participo'] ? '' : 'opacity-60' }}">
                     <div class="text-xs uppercase tracking-wider text-slate-400">{{ $a }} · todo {{ $departamento->nombre }}</div>
-                    <div class="mt-1 text-2xl font-extrabold text-slate-900">{{ $d['porcentaje'] ?? '—' }}%</div>
-                    <div class="text-sm text-slate-600">{{ $num($d['votos']) }} votos · ganó en {{ $d['ganados'] }} municipio(s)</div>
+                    @if ($d['participo'])
+                        <div class="mt-1 text-2xl font-extrabold text-slate-900">{{ $d['porcentaje'] ?? '—' }}%</div>
+                        <div class="text-sm text-slate-600">{{ $num($d['votos']) }} votos · ganó en {{ $d['ganados'] }} municipio(s)</div>
+                    @else
+                        <div class="mt-1 text-lg font-bold text-slate-500">No se presentó</div>
+                    @endif
                 </div>
             @endforeach
         </div>
@@ -97,7 +118,7 @@
                 <div class="text-lg font-extrabold text-slate-900 mb-1">Dónde es más fuerte</div>
                 <div class="text-xs text-slate-500 mb-3">Los 8 municipios con mayor porcentaje en {{ $u }}</div>
                 <div class="space-y-2">
-                    @foreach (collect($fortines['municipios'])->sortByDesc(fn ($r) => $r['por_anio'][$u]['porcentaje'] ?? -1)->take(8) as $r)
+                    @foreach (collect($fortines['municipios'])->filter(fn ($r) => $r['por_anio'][$u]['participo'])->sortByDesc(fn ($r) => $r['por_anio'][$u]['porcentaje'] ?? -1)->take(8) as $r)
                         @php($x = $r['por_anio'][$u])
                         <div wire:key="top-{{ $r['id'] }}">
                             <div class="flex justify-between text-sm">
@@ -152,7 +173,9 @@
                                 @foreach ($fortines['anios'] as $a)
                                     @php($x = $r['por_anio'][$a])
                                     <td class="py-2 px-3 text-right tabular-nums">
-                                        @if ($x['hubo'])
+                                        @if (! $x['participo'])
+                                            <span class="text-xs text-slate-400">no se presentó</span>
+                                        @elseif ($x['hubo'])
                                             <div class="font-semibold text-slate-900">{{ $x['porcentaje'] }}%{!! $x['gano'] ? ' <span title="Ganó">★</span>' : '' !!}</div>
                                             <div class="text-xs text-slate-500">{{ $num($x['votos']) }}</div>
                                         @else
@@ -260,6 +283,196 @@
                                 <td class="py-2 px-3 text-right tabular-nums">{{ $num($r['mesas']) }}</td>
                                 <td class="py-2 px-3 text-right tabular-nums">{{ $num($r['votos']) }}</td>
                                 <td class="py-2 px-3 text-right tabular-nums">{{ $r['participacion'] !== null ? $r['participacion'].'%' : '—' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
+
+    {{-- ===== 3. Tendencia política ===== --}}
+    @if ($seccion === 'tendencia' && $tendencia)
+        @php($bloques = \App\Models\PartidoIdeologia::BLOQUES)
+        @php($ideologiasDef = \App\Models\PartidoIdeologia::IDEOLOGIAS)
+        @php($u = $tendencia['ultimo'])
+        @php($giros = collect($tendencia['municipios'])->where('giro', true))
+
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            @foreach ($tendencia['anios'] as $a)
+                @php($d = $tendencia['departamento'][$a])
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                    <div class="text-xs uppercase tracking-wider text-slate-400">{{ $a }} · todo {{ $departamento->nombre }}</div>
+                    <div class="mt-2 flex h-3 rounded overflow-hidden bg-slate-100">
+                        @foreach ($bloques as $b => [$nombre, $color])
+                            <div style="width: {{ $d['porcentaje'][$b] ?? 0 }}%; background: {{ $color }}" title="{{ $nombre }} {{ $d['porcentaje'][$b] }}%"></div>
+                        @endforeach
+                        <div style="width: {{ $d['porcentaje']['sin_clasificar'] ?? 0 }}%; background: {{ \App\Models\PartidoIdeologia::SIN_CLASIFICAR_COLOR }}"></div>
+                    </div>
+                    <div class="mt-2 text-xs text-slate-600 space-y-0.5 tabular-nums">
+                        <div><span class="font-semibold" style="color: {{ $bloques['izquierda'][1] }}">Izq.</span> {{ $d['porcentaje']['izquierda'] ?? '—' }}% · gana en {{ $d['ganados']['izquierda'] }}</div>
+                        <div><span class="font-semibold" style="color: {{ $bloques['centro'][1] }}">Centro</span> {{ $d['porcentaje']['centro'] ?? '—' }}% · gana en {{ $d['ganados']['centro'] }}</div>
+                        <div><span class="font-semibold" style="color: {{ $bloques['derecha'][1] }}">Der.</span> {{ $d['porcentaje']['derecha'] ?? '—' }}% · gana en {{ $d['ganados']['derecha'] }}</div>
+                        @if ($d['porcentaje']['sin_clasificar'])
+                            <div class="text-slate-400">Sin clasificar {{ $d['porcentaje']['sin_clasificar'] }}%</div>
+                        @endif
+                    </div>
+                </div>
+            @endforeach
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <div class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+                    <div class="text-lg font-extrabold text-slate-900">Quién ganó en {{ $anio }}</div>
+                    <div class="flex flex-wrap gap-2 text-xs text-slate-600">
+                        @foreach ($ideologiasDef as [$nombre, , $color])
+                            <span class="inline-flex items-center gap-1"><span class="h-3 w-3 rounded" style="background: {{ $color }}"></span>{{ $nombre }}</span>
+                        @endforeach
+                        <span class="inline-flex items-center gap-1"><span class="h-3 w-3 rounded" style="background: {{ \App\Models\PartidoIdeologia::SIN_CLASIFICAR_COLOR }}"></span>Sin clasificar</span>
+                    </div>
+                </div>
+                <div id="analisis-mapa" class="h-[440px] w-full rounded-xl overflow-hidden bg-slate-100" wire:ignore></div>
+            </div>
+
+            <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                <div class="text-lg font-extrabold text-slate-900 mb-1">Cambiaron de bloque</div>
+                <div class="text-xs text-slate-500 mb-3">
+                    Municipios donde el ganador de {{ $u }} es de otro bloque que el de {{ $tendencia['previo'] ?? '—' }}
+                </div>
+                @forelse ($giros as $r)
+                    @php($antes = $r['por_anio'][$tendencia['previo']])
+                    @php($ahora = $r['por_anio'][$u])
+                    <div class="py-2 border-b border-slate-100 last:border-0" wire:key="giro-{{ $r['id'] }}">
+                        <div class="text-sm font-semibold text-slate-900">{{ $r['municipio'] }}</div>
+                        <div class="text-xs text-slate-600">
+                            <span class="font-semibold" style="color: {{ $bloques[$antes['bloque']][1] }}">{{ $bloques[$antes['bloque']][0] }}</span>
+                            ({{ $antes['ganador_nombre'] }})
+                            → <span class="font-semibold" style="color: {{ $bloques[$ahora['bloque']][1] }}">{{ $bloques[$ahora['bloque']][0] }}</span>
+                            ({{ $ahora['ganador_nombre'] }})
+                        </div>
+                    </div>
+                @empty
+                    <div class="text-sm text-slate-500">Ningún municipio cambió de bloque.</div>
+                @endforelse
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <div class="text-lg font-extrabold text-slate-900">Municipio por municipio</div>
+            <div class="text-xs text-slate-500 mb-4">
+                En cada año: el bloque del partido que ganó y el reparto de votos (izquierda / centro / derecha).
+                "Corrimiento" compara el índice de {{ $u }} con el de {{ $tendencia['previo'] ?? '—' }}:
+                de −2 (todo izquierda) a +2 (todo derecha); positivo = se movió a la derecha.
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="text-left text-xs uppercase tracking-wider text-slate-400">
+                        <tr>
+                            <th class="py-2 pr-4">Municipio</th>
+                            @foreach ($tendencia['anios'] as $a)
+                                <th class="py-2 px-3">{{ $a }}</th>
+                            @endforeach
+                            <th class="py-2 px-3 text-right">Corrimiento</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        @foreach (collect($tendencia['municipios'])->sortByDesc('potencial') as $r)
+                            <tr wire:key="t-{{ $r['id'] }}">
+                                <td class="py-2 pr-4 font-semibold text-slate-900">
+                                    {{ $r['municipio'] }}
+                                    @if ($r['giro'])
+                                        <span class="ml-1 text-[10px] uppercase text-amber-600">cambió</span>
+                                    @endif
+                                </td>
+                                @foreach ($tendencia['anios'] as $a)
+                                    @php($x = $r['por_anio'][$a])
+                                    <td class="py-2 px-3 min-w-[9rem]">
+                                        @if ($x['hubo'])
+                                            @php($ideo = $x['ideologia'] ? $ideologiasDef[$x['ideologia']] : null)
+                                            <div class="text-xs font-semibold" style="color: {{ $ideo[2] ?? '#78716c' }}">{{ $ideo[0] ?? 'Sin clasificar' }}</div>
+                                            <div class="text-[11px] text-slate-500 truncate max-w-[12rem]" title="{{ $x['ganador_nombre'] }}">{{ $x['ganador_nombre'] }}</div>
+                                            <div class="mt-1 flex h-1.5 rounded overflow-hidden bg-slate-100">
+                                                @foreach ($bloques as $b => [, $color])
+                                                    <div style="width: {{ $x['porcentaje'][$b] ?? 0 }}%; background: {{ $color }}"></div>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <span class="text-slate-400">—</span>
+                                        @endif
+                                    </td>
+                                @endforeach
+                                <td class="py-2 px-3 text-right tabular-nums font-semibold
+                                    {{ $r['cambio_indice'] === null ? 'text-slate-400' : ($r['cambio_indice'] > 0 ? 'text-blue-600' : ($r['cambio_indice'] < 0 ? 'text-red-600' : 'text-slate-500')) }}">
+                                    {{ $r['cambio_indice'] === null ? '—' : ($r['cambio_indice'] > 0 ? '+' : '').number_format($r['cambio_indice'], 2, ',', '.') }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {{-- Clasificación editable --}}
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+                <div>
+                    <div class="text-lg font-extrabold text-slate-900">Ideología de los partidos</div>
+                    <div class="text-xs text-slate-500 max-w-2xl">
+                        Clasificación inicial tomada de Wikipedia y la prensa; es una aproximación.
+                        Aplica a todos los candidatos y años. Una coalición sin clasificar toma la ideología de sus partidos
+                        cuando todos están en el mismo bloque ("Inferida"); si no, y en los movimientos locales, hay que elegirla.
+                        @if ($tendencia['sin_clasificar'])
+                            Aquí hay {{ count($tendencia['sin_clasificar']) }} sin clasificar; van primero.
+                        @endif
+                    </div>
+                </div>
+                <label class="text-xs font-semibold text-slate-700">Buscar partido
+                    <input type="search" wire:model.live.debounce.400ms="buscarPartido" class="{{ $select }}" placeholder="Nombre…">
+                </label>
+            </div>
+
+            @unless ($this->puedeClasificar())
+                <div class="mb-3 text-xs text-slate-500">Solo un usuario global con permiso de importar el histórico puede cambiar la clasificación.</div>
+            @endunless
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="text-left text-xs uppercase tracking-wider text-slate-400">
+                        <tr>
+                            <th class="py-2 pr-4">Partido o coalición</th>
+                            <th class="py-2 px-3 text-right">Votos (todos los años)</th>
+                            <th class="py-2 px-3">Ideología</th>
+                            <th class="py-2 px-3">Nota</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        @foreach ($clasificacion as $p)
+                            <tr wire:key="ideo-{{ md5($p['clave']) }}">
+                                <td class="py-2 pr-4 font-semibold text-slate-900">{{ $p['nombre'] }}</td>
+                                <td class="py-2 px-3 text-right tabular-nums">{{ $num($p['votos']) }}</td>
+                                <td class="py-2 px-3">
+                                    @if ($this->puedeClasificar())
+                                        <select class="rounded-lg border border-slate-300 px-2 py-1 text-sm bg-white"
+                                            wire:change="clasificar({{ \Illuminate\Support\Js::from($p['clave']) }}, $event.target.value)">
+                                            <option value="" @selected(! $p['ideologia'])>{{ $p['inferida'] ? 'Inferida: '.$ideologiasDef[$p['inferida']][0] : 'Sin clasificar' }}</option>
+                                            @foreach ($ideologiasDef as $valor => [$nombre])
+                                                <option value="{{ $valor }}" @selected($p['ideologia'] === $valor)>{{ $nombre }}</option>
+                                            @endforeach
+                                        </select>
+                                    @else
+                                        {{ $p['ideologia'] ? $ideologiasDef[$p['ideologia']][0] : ($p['inferida'] ? 'Inferida: '.$ideologiasDef[$p['inferida']][0] : 'Sin clasificar') }}
+                                    @endif
+                                </td>
+                                <td class="py-2 px-3 min-w-[16rem]">
+                                    @if ($this->puedeClasificar() && $p['ideologia'])
+                                        <input type="text" value="{{ $p['nota'] }}" maxlength="500" placeholder="Fuente o comentario"
+                                            class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm bg-white"
+                                            wire:change="anotar({{ \Illuminate\Support\Js::from($p['clave']) }}, $event.target.value)">
+                                    @else
+                                        <span class="text-xs text-slate-500">{{ $p['nota'] }}</span>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
