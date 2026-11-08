@@ -5,7 +5,8 @@
 ])
 
 @php
-    $isActive = request()->routeIs($pattern ?: $route);
+    // pattern admite varios nombres separados por "|" (p. ej. "eventos.index|eventos.show")
+    $isActive = request()->routeIs(...explode('|', $pattern ?: $route));
 @endphp
 
 <a href="{{ route($route) }}"

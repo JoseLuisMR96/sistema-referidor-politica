@@ -77,6 +77,7 @@ class Formulario extends Component
         if (! $this->evento) {
             $this->fecha = now()->format('Y-m-d\TH:i');
             $this->ajustarLugar();
+            $this->desdePlan();
 
             return;
         }
@@ -119,6 +120,27 @@ class Formulario extends Component
         }
         $this->departamento_id = $lugares->departamentoFijo() ?? $this->departamento_id;
         $this->municipio_id = $lugares->municipioFijo() ?? $this->municipio_id;
+    }
+
+    /**
+     * "Agendar" del plan de giras: ?municipio=ID&estado=planeado&lugar=...
+     * Solo se toma el municipio si está en la circunscripción.
+     */
+    private function desdePlan(): void
+    {
+        $municipio = (int) request()->query('municipio');
+        if ($municipio && $this->lugares()?->permite($municipio)) {
+            $this->municipio_id = $municipio;
+            $this->departamento_id = \App\Models\Municipio::whereKey($municipio)->value('departamento_id');
+        }
+        if (request()->query('estado') === 'planeado') {
+            $this->estado = 'planeado';
+            // Por defecto, mañana a las 9:00
+            $this->fecha = now()->addDay()->setTime(9, 0)->format('Y-m-d\TH:i');
+        }
+        if ($lugar = trim((string) request()->query('lugar'))) {
+            $this->lugar = mb_substr($lugar, 0, 150);
+        }
     }
 
     public function updatedDepartamentoId(): void

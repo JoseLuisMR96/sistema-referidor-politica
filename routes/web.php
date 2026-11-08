@@ -3,9 +3,11 @@
 use App\Http\Controllers\Admin\ReferidoresPregonerosMasivoExportController;
 use App\Http\Controllers\Admin\ReferidosPregonerosExportController;
 use App\Http\Controllers\DashboardExportController;
+use App\Http\Controllers\DiaEController;
 use App\Http\Controllers\EvidenciaEventoController;
 use App\Http\Controllers\Exports\PublicRegistrationsExportController;
 use App\Http\Controllers\MarcaArchivoController;
+use App\Http\Controllers\PresupuestoController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TenantSwitchController;
 use App\Livewire\Admin\Ideologias\Index as IdeologiasIndex;
@@ -25,12 +27,17 @@ use App\Livewire\Dashboard\Analisis as DashboardAnalisis;
 use App\Livewire\Dashboard\Historico as DashboardHistorico;
 use App\Livewire\Dashboard\Redes as DashboardRedes;
 use App\Livewire\Dashboard\Stats;
+use App\Livewire\DiaE\Index as DiaEIndex;
+use App\Livewire\DiaE\Reportar as DiaEReportar;
 use App\Livewire\Eventos\Equipo as EventosEquipo;
 use App\Livewire\Eventos\Formulario as EventosFormulario;
 use App\Livewire\Eventos\Index as EventosIndex;
+use App\Livewire\Eventos\PlanGiras as EventosPlanGiras;
+use App\Livewire\Eventos\Retorno as EventosRetorno;
 use App\Livewire\Eventos\Show as EventosShow;
 use App\Livewire\ImportedPeople\Index as ImportedPeopleIndex;
 use App\Livewire\ImportedPeople\Show as ImportedPeopleShow;
+use App\Livewire\Presupuesto\Index as PresupuestoIndex;
 use App\Livewire\Public\ReferirPregonero;
 use App\Livewire\Public\RegistrationForm;
 use App\Livewire\Registrations\Edit as RegistrationsEdit;
@@ -63,6 +70,12 @@ Route::get(
 |--------------------------------------------------------------------------
 */
 Route::get('/registro', RegistrationForm::class)->name('public.registro');
+
+// Día E: el testigo reporta sus mesas con su enlace personal (sin sesión)
+Route::get('/testigo/{token}', DiaEReportar::class)
+    ->where('token', '[A-Za-z0-9]{40}')
+    ->middleware('throttle:60,1')
+    ->name('testigo.reportar');
 Route::get('/pregoneros/{id_unico}/referir', ReferirPregonero::class)
     ->name('public.referir');
 
@@ -229,6 +242,14 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:eventos.crear')
         ->name('eventos.create');
 
+    Route::get('/eventos/retorno', EventosRetorno::class)
+        ->middleware('permission:eventos.ver')
+        ->name('eventos.retorno');
+
+    Route::get('/eventos/plan-de-giras', EventosPlanGiras::class)
+        ->middleware('permission:eventos.ver')
+        ->name('eventos.plan');
+
     Route::get('/eventos/evidencias/{evidencia}', EvidenciaEventoController::class)
         ->middleware('permission:eventos.ver')
         ->name('eventos.evidencia');
@@ -240,6 +261,28 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/eventos/{evento}/editar', EventosFormulario::class)
         ->middleware('permission:eventos.editar')
         ->name('eventos.edit');
+
+    // Presupuesto y gastos (soportes privados; el gasto de otro candidato da 404)
+    Route::get('/presupuesto', PresupuestoIndex::class)
+        ->middleware('permission:presupuesto.ver')
+        ->name('presupuesto.index');
+
+    Route::get('/presupuesto/exportar', [PresupuestoController::class, 'exportar'])
+        ->middleware('permission:presupuesto.ver')
+        ->name('presupuesto.exportar');
+
+    Route::get('/presupuesto/soportes/{gasto}', [PresupuestoController::class, 'soporte'])
+        ->middleware('permission:presupuesto.ver')
+        ->name('presupuesto.soporte');
+
+    // Día de elecciones: testigos y conteo propio
+    Route::get('/dia-e', DiaEIndex::class)
+        ->middleware('permission:diae.ver')
+        ->name('diae.index');
+
+    Route::get('/dia-e/e14/{reporte}', [DiaEController::class, 'foto'])
+        ->middleware('permission:diae.ver')
+        ->name('diae.foto');
 
     Route::get('/equipo-campana', EventosEquipo::class)
         ->middleware('permission:eventos.ver|equipo.gestionar')

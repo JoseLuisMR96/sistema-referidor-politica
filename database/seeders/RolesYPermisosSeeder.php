@@ -75,6 +75,14 @@ class RolesYPermisosSeeder extends Seeder
             'eventos.eliminar',
             'equipo.gestionar',
 
+            // Presupuesto y gastos de campaña (tope legal, Cuentas Claras)
+            'presupuesto.ver',
+            'presupuesto.gestionar',
+
+            // Día de elecciones: testigos y conteo propio
+            'diae.ver',
+            'diae.gestionar',
+
         ];
 
         // 1) Crear/actualizar permisos (idempotente)
@@ -111,6 +119,10 @@ class RolesYPermisosSeeder extends Seeder
             'eventos.crear',
             'eventos.editar',
             'equipo.gestionar',
+            'presupuesto.ver',
+            'presupuesto.gestionar',
+            'diae.ver',
+            'diae.gestionar',
         ]);
 
         $rolAnalista->syncPermissions([
@@ -124,6 +136,7 @@ class RolesYPermisosSeeder extends Seeder
             'redes.ver',
             'historico.ver',
             'eventos.ver',
+            'diae.ver',
         ]);
 
         // Referidor: crea registros y ve los suyos
