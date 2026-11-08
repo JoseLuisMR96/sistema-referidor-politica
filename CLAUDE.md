@@ -266,6 +266,49 @@ Trazabilidad de dónde ha estado el candidato o su equipo (emisarios que van en 
   - `eventos.crear`, `eventos.editar` y `equipo.gestionar`: Administrador y Operador.
   - `eventos.eliminar`: solo Administrador.
 
+### Retorno de eventos y plan de giras
+
+- **Retorno** (`/eventos/retorno`, [RetornoEventos](app/Services/Territorio/RetornoEventos.php)):
+  - **Atribuibles** = registros del municipio en los 7, 14 o 30 días desde el evento menos los esperados por el ritmo de los 30 días anteriores.
+  - Dos eventos en la misma ventana y municipio se reparten. Solo cuentan los `realizado`, y no cuentan los registros `importado`.
+  - **Costo por registro** = gastado (o asignado) / atribuibles.
+  - Se presenta como **coincidencia en el tiempo**.
+- **Plan de giras** (`/eventos/plan-de-giras`, [PlanGiras](app/Services/Territorio/PlanGiras.php)):
+  - **Departamentales:** usan `PlanCampania::prioridades()` y suben la urgencia de los municipios sin visita (factor de hasta 45 días). Lo ya planeado baja a la mitad. Los motivos se muestran en etiquetas.
+  - **Municipales:** priorizan por puesto de votación (`AnalisisPuestos`): tamaño y votos que le faltan al partido.
+  - **Nacionales:** no tienen plan.
+  - "Agendar" abre `eventos.create?municipio=&estado=planeado&lugar=`. El municipio solo se toma si está en la circunscripción.
+
+## Presupuesto de campaña
+
+`/presupuesto` ([Presupuesto\Index](app/Livewire/Presupuesto/Index.php), permisos `presupuesto.ver` y `presupuesto.gestionar`: Administrador y Operador). Los cálculos están en [PresupuestoCampana](app/Services/Territorio/PresupuestoCampana.php).
+
+- **Tablas por tenant:**
+  - `presupuestos`: tope legal, uno por candidato. Lo escribe el usuario, porque el CNE lo fija por circunscripción.
+  - `presupuesto_rubros`: monto por categoría.
+  - `gastos_campana`: con su soporte en el disco privado `presupuesto/{tenant}/`, servido por `presupuesto.soporte`.
+- **Categorías:** `GastoCampana::CATEGORIAS` son las del informe de gastos de Cuentas Claras (201–210). Hay que verificarlas con el formato vigente.
+- **Eventos:** su dinero entra en 204 (Actos públicos). Lo legalizado cuenta como gastado; lo asignado sin legalizar, como comprometido. Un evento con gastos ligados (`evento_id`) no se cuenta dos veces.
+- **Alertas:** al 80, 95 y 100 % del tope; categoría sobre presupuesto; eventos sin legalizar a los 15 días; gastos sin soporte.
+- **Exportar:** `presupuesto.exportar` da un CSV con `;` y BOM. Los textos que empiezan por `= + - @` se prefijan con `'`, para que Excel no los ejecute.
+
+## Día de elecciones
+
+`/dia-e` ([DiaE\Index](app/Livewire/DiaE/Index.php), permisos `diae.ver` y `diae.gestionar`). Es el conteo propio de la campaña con los E-14 de sus testigos, **parcial y sin validar**.
+
+- **Tablas por tenant:**
+  - `elecciones` y `eleccion_opciones`: candidatos o listas, con `propia` para el del candidato.
+  - `testigos`: puesto (`puestos_votacion`), mesas como "1-5, 8" (`Testigo::mesasDe()`) y `token` de 40 caracteres.
+  - `reportes_mesa`: una por elección, puesto y mesa. Corregir la reemplaza.
+- **Testigos:** el puesto tiene que estar en la circunscripción (`LugaresCampana`), así que hacen falta los puestos cargados de ese departamento.
+- **Reporte público** `/testigo/{token}` ([Reportar](app/Livewire/DiaE/Reportar.php), sin sesión, throttle):
+  - El testigo se busca con `withoutGlobalScope('tenant')` y el reporte lleva su `tenant_id` explícito.
+  - Solo puede reportar sus mesas, y no corrige las que reportó otro testigo.
+  - La foto del E-14 va a `diae/{tenant}/{eleccion}/` (privado; `diae.foto`).
+  - "Nuevo enlace" invalida el anterior. Con la elección cerrada (`abierta` en false) no se reporta.
+- **Resultados** ([ResultadosDiaE](app/Services/Territorio/ResultadosDiaE.php)): votos por opción, cobertura (mesas reportadas sobre las asignadas y las del DIVIPOL), por puesto y municipio. Se refrescan con `wire:poll.15s`.
+- **Al eliminar el candidato:** `EliminarTenant` borra estas tablas y las carpetas `presupuesto/{tenant}` y `diae/{tenant}`.
+
 ## Modelo de dominio
 
 ### Dos sistemas de referidos independientes (no los mezcles)

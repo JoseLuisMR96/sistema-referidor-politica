@@ -41,6 +41,13 @@ class EliminarTenant
         'redes_tono' => 'Tono de comentarios',
         'redes_metricas' => 'Métricas de redes',
         'redes_cuentas' => 'Cuentas de redes',
+        // eleccion_opciones cae por CASCADE con las elecciones
+        'reportes_mesa' => 'Reportes de mesa (día E)',
+        'testigos' => 'Testigos',
+        'elecciones' => 'Elecciones del día E',
+        'gastos_campana' => 'Gastos de campaña',
+        'presupuesto_rubros' => 'Presupuesto por categoría',
+        'presupuestos' => 'Tope de gastos',
         // evento_integrante cae por CASCADE con los eventos
         'evidencias_evento' => 'Evidencias de eventos',
         'eventos_campana' => 'Eventos de campaña',
@@ -89,6 +96,8 @@ class EliminarTenant
 
         // Fotos y soportes de sus eventos (disco privado)
         Storage::disk('local')->deleteDirectory("eventos/{$tenant->id}");
+        Storage::disk('local')->deleteDirectory("presupuesto/{$tenant->id}");
+        Storage::disk('local')->deleteDirectory("diae/{$tenant->id}");
 
         foreach ([$tenant->logo_path, $tenant->foto_path, $tenant->fondo_path] as $ruta) {
             if ($ruta) {

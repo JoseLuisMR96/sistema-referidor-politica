@@ -181,14 +181,32 @@
                     <div class="{{ $tituloSeccion }}">Territorio</div>
 
                     @can('eventos.ver')
-                        <x-sidebar-link route="eventos.index" pattern="eventos.*" icon="map">
+                        <x-sidebar-link route="eventos.index" pattern="eventos.index|eventos.create|eventos.show|eventos.edit" icon="map">
                             Eventos de campaña
+                        </x-sidebar-link>
+                        <x-sidebar-link route="eventos.plan" icon="flag">
+                            Plan de giras
+                        </x-sidebar-link>
+                        <x-sidebar-link route="eventos.retorno" icon="chart-bar">
+                            Retorno de eventos
                         </x-sidebar-link>
                     @endcan
 
                     <x-sidebar-link route="equipo.index" icon="users">
                         Equipo de campaña
                     </x-sidebar-link>
+
+                    @can('presupuesto.ver')
+                        <x-sidebar-link route="presupuesto.index" icon="document-text">
+                            Presupuesto
+                        </x-sidebar-link>
+                    @endcan
+
+                    @can('diae.ver')
+                        <x-sidebar-link route="diae.index" icon="megaphone">
+                            Día de elecciones
+                        </x-sidebar-link>
+                    @endcan
                 @endcanany
 
                 @can('whatsapp.enviar')

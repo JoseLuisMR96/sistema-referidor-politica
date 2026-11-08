@@ -208,4 +208,84 @@ class EventosCampanaTest extends TestCase
         $this->assertSame(0, EventoCampana::count() + IntegranteEquipo::count() + EvidenciaEvento::count());
         Storage::disk('local')->assertMissing($ruta);
     }
+
+    // --- Retorno de los eventos ---
+
+    private function registros(Municipio $m, int $cantidad, \Illuminate\Support\Carbon $dia): void
+    {
+        static $doc = 80000;
+        for ($i = 0; $i < $cantidad; $i++) {
+            $r = \App\Models\PublicRegistration::create([
+                'full_name' => 'Persona', 'document_type' => 'CC', 'document_number' => (string) $doc++, 'gender' => 'F',
+                'residence_municipality' => 'X', 'voting_municipality' => 'X', 'voting_municipality_id' => $m->id,
+            ]);
+            $r->forceFill(['created_at' => $dia->copy()->setTime(10, 0)])->save();
+        }
+    }
+
+    public function test_el_retorno_compara_con_el_ritmo_anterior(): void
+    {
+        $dia = now()->subDays(20)->startOfDay();
+        // Antes: 1 registro diario durante 30 días
+        for ($i = 1; $i <= 30; $i++) {
+            $this->registros($this->villavo, 1, $dia->copy()->subDays($i));
+        }
+        // Después del evento: 28 en 14 días (2 por día)
+        for ($i = 0; $i < 14; $i++) {
+            $this->registros($this->villavo, 2, $dia->copy()->addDays($i));
+        }
+        $ana = IntegranteEquipo::create(['nombre' => 'Ana Pérez', 'rol' => 'emisario']);
+        EventoCampana::create(['titulo' => 'Reunión', 'tipo' => 'reunion', 'estado' => 'realizado', 'fecha' => $dia->copy()->setTime(9, 0),
+            'municipio_id' => $this->villavo->id, 'responsable_id' => $ana->id, 'monto_asignado' => 800000, 'monto_gastado' => 700000]);
+        // Un cancelado no cuenta
+        EventoCampana::create(['titulo' => 'Cancelado', 'tipo' => 'reunion', 'estado' => 'cancelado', 'fecha' => $dia, 'municipio_id' => $this->villavo->id]);
+
+        $r = app(\App\Services\Territorio\RetornoEventos::class)->calcular(14);
+
+        $this->assertCount(1, $r['eventos']);
+        $e = $r['eventos'][0];
+        $this->assertSame([30, 28, 14.0, 14.0], [$e['antes'], $e['despues'], $e['esperado'], $e['atribuibles']]);
+        $this->assertSame(50000.0, (float) $e['costo_registro']); // 700.000 gastados / 14
+        $this->assertSame('Ana Pérez', $r['por_persona'][0]['nombre']);
+        $this->assertSame('Solo el equipo', $r['por_quien'][0]['nombre']);
+
+        $this->actingAs($this->usuario())->withSession([TenantContext::SESSION_KEY => $this->gobernador->id])
+            ->get(route('eventos.retorno'))->assertOk()->assertSee('coincidencia en el tiempo', false);
+    }
+
+    // --- Plan de giras ---
+
+    public function test_el_plan_de_giras_prioriza_donde_no_se_ha_estado(): void
+    {
+        $f = fn ($mun, $partido, $votos) => ['anio' => '2023', 'cargo' => 'gobernacion', 'departamento' => 'META', 'municipio' => $mun,
+            'partido' => $partido, 'candidato' => 'X', 'votos' => (string) $votos];
+        app(\App\Services\Historico\ImportadorHistorico::class)->guardar([
+            $f('VILLAVICENCIO', 'PARTIDO LIBERAL COLOMBIANO', 600), $f('VILLAVICENCIO', 'PARTIDO DE LA U', 400),
+            $f('GRANADA', 'PARTIDO LIBERAL COLOMBIANO', 60), $f('GRANADA', 'PARTIDO DE LA U', 40),
+        ]);
+        EventoCampana::create(['titulo' => 'Visita', 'tipo' => 'visita', 'estado' => 'realizado', 'fecha' => now()->subDays(2),
+            'municipio_id' => $this->villavo->id, 'asistio_candidato' => true]);
+
+        $p = app(\App\Services\Territorio\PlanGiras::class)->calcular($this->gobernador);
+        $this->assertSame('municipios', $p['modo']);
+        $granada = collect($p['municipios'])->firstWhere('municipio', 'GRANADA');
+        $villavo = collect($p['municipios'])->firstWhere('municipio', 'VILLAVICENCIO');
+        $this->assertContains('Nunca se ha estado', $granada['motivos']);
+        $this->assertSame(1, $villavo['eventos']);
+        $this->assertSame(1, $p['sin_visita']);
+
+        // El concejal sin datos por puesto no tiene plan todavía
+        $this->assertSame('sin_puestos', app(\App\Services\Territorio\PlanGiras::class)->calcular($this->concejal)['modo']);
+
+        // "Agendar" abre el registro con el municipio y como planeado; fuera de la circunscripción se ignora
+        Livewire::withQueryParams(['municipio' => $this->granada->id, 'estado' => 'planeado', 'lugar' => 'Salón comunal'])
+            ->actingAs($this->usuario())->test(Formulario::class)
+            ->assertSet('municipio_id', $this->granada->id)->assertSet('estado', 'planeado')->assertSet('lugar', 'Salón comunal');
+        Livewire::withQueryParams(['municipio' => $this->neiva->id])
+            ->actingAs($this->usuario())->test(Formulario::class)
+            ->assertSet('municipio_id', null);
+
+        $this->actingAs($this->usuario())->withSession([TenantContext::SESSION_KEY => $this->gobernador->id])
+            ->get(route('eventos.plan'))->assertOk()->assertSee('GRANADA')->assertSee('Agendar');
+    }
 }
