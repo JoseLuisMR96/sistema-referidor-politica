@@ -46,6 +46,22 @@ class Analisis extends Component
         'puestos' => 'Puestos de votación',
     ];
 
+    /** Qué hace cada sección: se muestra al elegirla y al pasar el mouse por el botón */
+    public const DESCRIPCIONES = [
+        'fortines' => 'Elige un partido y mira en qué municipios es más fuerte: su % y sus votos en cada elección, cuánto subió o bajó frente a la anterior y dónde ganó. Sirve para saber dónde cuidar el voto propio.',
+        'municipios' => 'Cuánta gente vota en cada municipio: potencial electoral, peso en el departamento, mujeres, mesas y participación. Sirve para medir dónde están los votos antes de repartir esfuerzos.',
+        'tendencia' => 'Hacia dónde se inclina cada municipio (izquierda, centro o derecha) según quién ganó y cómo se repartieron los votos, y qué municipios cambiaron de bloque entre elecciones.',
+        'alcaldes' => 'Compara al alcalde en funciones con lo que sacó cada candidato a la gobernación en su municipio. Muestra coincidencias estadísticas para identificar posibles aliados locales; no prueba participación en política.',
+        'meta' => 'Cuántos votos necesita el candidato para ganar o sacar curul, repartidos por municipio, y cuánto lleva con sus registros. Sirve para saber si va adelantado o atrasado y dónde.',
+        'conquistar' => 'Votos que todavía están en juego en cada municipio: los que no votaron, el voto en blanco y los que votaron en la presidencial pero no en este cargo.',
+        'disputa' => 'Puntaje de 0 a 100 de qué tan peleado es cada municipio: margen del ganador, si cambió de bloque y qué tan volátil es. Los más altos son los que se pueden voltear.',
+        'prioridades' => 'Ordena los municipios por dónde conviene invertir tiempo y dinero, combinando tamaño, votos por conquistar, disputa y afinidad con el candidato, y sugiere una acción para cada uno.',
+        'alianzas' => 'Simula qué pasaría si varios partidos se unen: suma sus votos con un % de transferencia y muestra dónde ganarían o cuántas curules sacarían juntos frente a separados.',
+        'maquinaria' => 'Compara el voto de opinión (Senado) con el de estructura local (concejo y asamblea) de cada partido, y muestra sus líderes más votados y dónde concentran sus votos.',
+        'testigos' => 'Municipios y puestos con señales para vigilar el día de elecciones: participación muy alta, saltos de votos, ganadores con más del 80 %, muchos nulos. Reparte los testigos disponibles. Son señales, no pruebas de fraude.',
+        'puestos' => 'El resultado de un partido en cada puesto de votación del municipio, su cambio frente a la elección anterior y cuántos votos le faltan en cada puesto para llegar a su promedio.',
+    ];
+
     /** Puestos: orden de la tabla */
     public const ORDEN_PUESTOS = [
         'votos' => 'Más votos',
