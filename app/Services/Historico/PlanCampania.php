@@ -197,13 +197,13 @@ class PlanCampania
      *
      * @param  array<int, int>|null  $registros  municipio_id => registros del candidato (null = sin candidato)
      */
-    public function meta(int $departamentoId, string $cargo, ?array $registros = null, ?int $metaManual = null, ?int $curulesManual = null): array
+    public function meta(int $departamentoId, string $cargo, ?array $registros = null, ?int $metaManual = null, ?int $curulesManual = null, ?int $anio = null): array
     {
         if (! in_array($cargo, self::CON_META, true)) {
             return ['aplica' => false];
         }
 
-        $d = $this->analisis->datos($departamentoId, $cargo);
+        $d = $this->analisis->datosHasta($departamentoId, $cargo, $anio);
         $anios = $d['anios'];
         $ultimo = end($anios) ?: null;
         $previo = count($anios) > 1 ? $anios[count($anios) - 2] : null;
@@ -304,9 +304,9 @@ class PlanCampania
      * Aproximado: el potencial es el más reciente cargado y el histórico no
      * trae nulos ni no marcados, así que "no votó" queda un poco alto.
      */
-    public function conquistar(int $departamentoId, string $cargo): array
+    public function conquistar(int $departamentoId, string $cargo, ?int $anio = null): array
     {
-        $d = $this->analisis->datos($departamentoId, $cargo);
+        $d = $this->analisis->datosHasta($departamentoId, $cargo, $anio);
         $anios = $d['anios'];
         $ultimo = end($anios) ?: null;
         $previo = count($anios) > 1 ? $anios[count($anios) - 2] : null;
@@ -314,7 +314,9 @@ class PlanCampania
         $presidencial = null;
         if ($cargo !== 'presidencia' && in_array('presidencia', $this->analisis->cargos($departamentoId), true)) {
             $p = $this->analisis->datos($departamentoId, 'presidencia');
-            $presidencial = ['anio' => end($p['anios']) ?: null, 'municipios' => $p['municipios']];
+            // La presidencial más reciente que no sea posterior a la elección elegida
+            $anioPres = collect($p['anios'])->filter(fn ($a) => ! $ultimo || $a <= $ultimo)->last();
+            $presidencial = ['anio' => $anioPres, 'municipios' => $p['municipios']];
         }
 
         $filas = [];
@@ -377,10 +379,10 @@ class PlanCampania
      * de ganador en la última elección + 15 % volatilidad entre bloques.
      * Si no se sabe el bloque, cambiar de partido ganador cuenta un cuarto.
      */
-    public function disputa(int $departamentoId, string $cargo, ?array $ideologias = null): array
+    public function disputa(int $departamentoId, string $cargo, ?array $ideologias = null, ?int $anio = null): array
     {
-        $d = $this->analisis->datos($departamentoId, $cargo);
-        $t = $this->analisis->tendencia($departamentoId, $cargo, $ideologias);
+        $d = $this->analisis->datosHasta($departamentoId, $cargo, $anio);
+        $t = $this->analisis->tendencia($departamentoId, $cargo, $ideologias, $anio);
         $anios = $d['anios'];
         $ultimo = $t['ultimo'];
         $previo = $t['previo'];
@@ -497,15 +499,15 @@ class PlanCampania
      * @param  string|null  $bloque  izquierda, centro o derecha del candidato (null = sin afinidad)
      */
     public function prioridades(int $departamentoId, string $cargo, ?string $bloque, string $enfoque = 'equilibrado',
-        ?array $registros = null, ?int $metaManual = null, ?int $curulesManual = null, ?array $ideologias = null): array
+        ?array $registros = null, ?int $metaManual = null, ?int $curulesManual = null, ?array $ideologias = null, ?int $anio = null): array
     {
         $ideologias ??= PartidoIdeologia::mapa();
         $pesos = (self::ENFOQUES[$enfoque] ?? self::ENFOQUES['equilibrado'])[1];
 
-        $meta = $this->meta($departamentoId, $cargo, $registros, $metaManual, $curulesManual);
-        $conquistar = $this->conquistar($departamentoId, $cargo);
-        $disputa = $this->disputa($departamentoId, $cargo, $ideologias);
-        $tendencia = $this->analisis->tendencia($departamentoId, $cargo, $ideologias);
+        $meta = $this->meta($departamentoId, $cargo, $registros, $metaManual, $curulesManual, $anio);
+        $conquistar = $this->conquistar($departamentoId, $cargo, $anio);
+        $disputa = $this->disputa($departamentoId, $cargo, $ideologias, $anio);
+        $tendencia = $this->analisis->tendencia($departamentoId, $cargo, $ideologias, $anio);
 
         $metaPor = collect($meta['municipios'] ?? [])->keyBy('id');
         $conqPor = collect($conquistar['municipios'])->keyBy('id');

@@ -145,6 +145,37 @@ class PlanCampaniaTest extends TestCase
         $this->assertGreaterThan(0, collect($p['municipios'])->firstWhere('municipio', 'GRANADA')['afinidad']);
     }
 
+    public function test_cada_seccion_se_puede_ver_por_anio(): void
+    {
+        $this->cargar();
+        $plan = app(PlanCampania::class);
+
+        // Concejo 2019 como "última": no hay elección anterior con qué comparar
+        $c = $plan->conquistar($this->meta->id, 'concejo', 2019);
+        $this->assertSame(2019, $c['ultimo']);
+        $this->assertNull($c['previo']);
+        $d = $plan->disputa($this->meta->id, 'concejo', null, 2019);
+        $this->assertSame(2019, $d['ultimo']);
+        // Sin año, la última de verdad
+        $this->assertSame(2023, $plan->conquistar($this->meta->id, 'concejo')['ultimo']);
+
+        $analista = User::factory()->create();
+        $analista->assignRole('Analista');
+        $c = Livewire::actingAs($analista)
+            ->test(Analisis::class, ['departamentoId' => $this->meta->id, 'cargo' => 'concejo', 'seccion' => 'fortines'])
+            ->assertSet('anio', 2023)
+            ->assertSee('(la última)')
+            ->set('anio', 2019)
+            ->assertSee('Viendo 2019 como si fuera la última elección');
+
+        foreach (Analisis::CON_ANIO as $seccion) {
+            $c->call('verSeccion', $seccion)->assertOk()->assertSet('anio', 2019);
+        }
+
+        // Un año que el cargo no tiene vuelve al último
+        $c->call('verSeccion', 'fortines')->set('anio', 1990)->assertSet('anio', 2023);
+    }
+
     public function test_las_secciones_del_plan_cargan(): void
     {
         $this->cargar();

@@ -101,12 +101,27 @@ class AnalisisElectoral
     }
 
     /**
+     * datos() visto desde una elección: quita los años posteriores a $anio,
+     * así "la última elección" y "la anterior" pasan a ser $anio y la previa.
+     * Con $anio nulo o que no existe, devuelve todo.
+     */
+    public function datosHasta(int $departamentoId, string $cargo, ?int $anio): array
+    {
+        $d = $this->datos($departamentoId, $cargo);
+        if ($anio !== null && in_array($anio, $d['anios'], true)) {
+            $d['anios'] = array_values(array_filter($d['anios'], fn ($a) => $a <= $anio));
+        }
+
+        return $d;
+    }
+
+    /**
      * Fortines de un partido: por municipio, sus votos y porcentaje en cada
      * año, el cambio frente a la elección anterior y si ganó ahí.
      */
-    public function fortines(int $departamentoId, string $cargo, string $clave): array
+    public function fortines(int $departamentoId, string $cargo, string $clave, ?int $anio = null): array
     {
-        $d = $this->datos($departamentoId, $cargo);
+        $d = $this->datosHasta($departamentoId, $cargo, $anio);
         $anios = $d['anios'];
 
         // Años en que el partido se presentó en el departamento. Las comparaciones
@@ -183,10 +198,10 @@ class AnalisisElectoral
      *
      * @param  array<string, string>|null  $ideologias  clave => ideología (por defecto, la tabla)
      */
-    public function tendencia(int $departamentoId, string $cargo, ?array $ideologias = null): array
+    public function tendencia(int $departamentoId, string $cargo, ?array $ideologias = null, ?int $hasta = null): array
     {
         $ideologias ??= PartidoIdeologia::mapa();
-        $d = $this->datos($departamentoId, $cargo);
+        $d = $this->datosHasta($departamentoId, $cargo, $hasta);
 
         // Coaliciones sin clasificar: se infiere por sus partidos, si coinciden de bloque
         $inferidas = [];
@@ -333,9 +348,9 @@ class AnalisisElectoral
      * Tamaño de cada municipio: potencial electoral, su peso en el
      * departamento y los votos válidos de la última elección del cargo.
      */
-    public function municipios(int $departamentoId, string $cargo): array
+    public function municipios(int $departamentoId, string $cargo, ?int $anio = null): array
     {
-        $d = $this->datos($departamentoId, $cargo);
+        $d = $this->datosHasta($departamentoId, $cargo, $anio);
         $ultimo = end($d['anios']) ?: null;
 
         $catalogo = DB::table('municipios')->where('departamento_id', $departamentoId)

@@ -184,6 +184,7 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
 
 `/dashboard/analisis` ([Analisis](app/Livewire/Dashboard/Analisis.php), permiso `historico.ver`) da lecturas sobre `historico_electoral` para planear campaña. Los cálculos están en [AnalisisElectoral](app/Services/Historico/AnalisisElectoral.php), con la misma versión de caché del Histórico.
 
+- **Filtro de año:** todas las secciones se pueden ver por elección. Tendencia, alcaldes, alianzas y puestos tienen su propio selector; las de `Analisis::CON_ANIO` usan el selector general "Elección", que pasa `$anio` a los servicios. Ahí `AnalisisElectoral::datosHasta()` quita los años posteriores, así "la última" y "la anterior" pasan a ser el año elegido y su previo. Maquinaria toma de cada cargo su última elección hasta ese año. Si agregas una sección, súmala a `CON_ANIO` o dale su selector.
 - **Secciones:**
   1. **Fortines:** % y votos de un partido por municipio y año, cambio entre elecciones y dónde ganó.
   2. **Tamaño de los municipios:** potencial electoral, peso en el departamento, mujeres, mesas y participación aproximada (votos válidos sobre potencial).
