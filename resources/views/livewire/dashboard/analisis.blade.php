@@ -19,6 +19,7 @@
         @foreach (Analisis::SECCIONES as $clave => $titulo)
             @php($proximamente = in_array($clave, Analisis::PROXIMAMENTE, true))
             <button type="button" wire:click="verSeccion('{{ $clave }}')" @disabled($proximamente)
+                title="{{ Analisis::DESCRIPCIONES[$clave] ?? '' }}"
                 class="rounded-xl px-4 py-2 text-sm font-semibold border
                     {{ $seccion === $clave ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50' }}
                     {{ $proximamente ? 'opacity-50 cursor-not-allowed' : '' }}">
@@ -29,6 +30,14 @@
             </button>
         @endforeach
     </div>
+
+    {{-- ===== Qué hace la sección elegida ===== --}}
+    @if (isset(Analisis::DESCRIPCIONES[$seccion]))
+        <div class="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-slate-700">
+            <span class="font-bold text-indigo-700">{{ Analisis::SECCIONES[$seccion] }}:</span>
+            {{ Analisis::DESCRIPCIONES[$seccion] }}
+        </div>
+    @endif
 
     {{-- ===== Filtros ===== --}}
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
