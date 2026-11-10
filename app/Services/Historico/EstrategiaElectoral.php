@@ -215,7 +215,7 @@ class EstrategiaElectoral
      * Estructura > opinión = el partido vive de sus líderes locales.
      * Opinión > estructura = tiene simpatizantes, pero le faltan candidatos fuertes.
      */
-    public function maquinaria(int $departamentoId, string $clave): array
+    public function maquinaria(int $departamentoId, string $clave, ?int $hasta = null): array
     {
         $cargos = array_values(array_intersect([self::OPINION, ...self::ESTRUCTURA], $this->analisis->cargos($departamentoId)));
         $por = [];
@@ -223,7 +223,11 @@ class EstrategiaElectoral
         $nombre = $clave;
         foreach ($cargos as $cargo) {
             $d = $this->analisis->datos($departamentoId, $cargo);
-            $anio = end($d['anios']);
+            // La última elección de cada cargo que no sea posterior a $hasta
+            $anio = collect($d['anios'])->filter(fn ($a) => ! $hasta || $a <= $hasta)->last();
+            if (! $anio) {
+                continue;
+            }
             $anios[$cargo] = $anio;
             $nombre = $d['partidos'][$clave]['nombre'] ?? $nombre;
             $por[$cargo] = ['datos' => $d, 'anio' => $anio];
@@ -344,10 +348,10 @@ class EstrategiaElectoral
      * Concentración = % de sus votos en su municipio más fuerte. Municipios
      * para el 80 % = cuántos municipios suman el 80 % de sus votos.
      */
-    public function lideres(int $departamentoId, string $cargo, ?string $clave = null, int $limite = 40): array
+    public function lideres(int $departamentoId, string $cargo, ?string $clave = null, int $limite = 40, ?int $anio = null): array
     {
-        $todos = $this->recordar('lideres', [$departamentoId, $cargo], function () use ($departamentoId, $cargo) {
-            $anio = DB::table('historico_electoral')->where('departamento_id', $departamentoId)->where('cargo', $cargo)->max('anio');
+        $todos = $this->recordar('lideres', [$departamentoId, $cargo, $anio], function () use ($departamentoId, $cargo, $anio) {
+            $anio ??= DB::table('historico_electoral')->where('departamento_id', $departamentoId)->where('cargo', $cargo)->max('anio');
             if (! $anio) {
                 return ['anio' => null, 'candidatos' => []];
             }
@@ -431,9 +435,9 @@ class EstrategiaElectoral
      *
      * @param  int|null  $disponibles  testigos con que se cuenta: se reparten por mesa en orden de prioridad
      */
-    public function testigos(int $departamentoId, string $cargo, ?int $disponibles = null): array
+    public function testigos(int $departamentoId, string $cargo, ?int $disponibles = null, ?int $anio = null): array
     {
-        $d = $this->analisis->datos($departamentoId, $cargo);
+        $d = $this->analisis->datosHasta($departamentoId, $cargo, $anio);
         $anios = $d['anios'];
         $ultimo = end($anios) ?: null;
         $previo = count($anios) > 1 ? $anios[count($anios) - 2] : null;

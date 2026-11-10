@@ -59,6 +59,19 @@
             </label>
         @endif
 
+        @if ($aniosSeccion)
+            <label class="text-xs font-semibold text-slate-700">Elección
+                <select wire:model.live="anio" class="{{ $select }}">
+                    @foreach (array_reverse($aniosSeccion) as $a)
+                        <option value="{{ $a }}">{{ $a }}{{ $loop->first ? ' (la última)' : '' }}</option>
+                    @endforeach
+                </select>
+                @if ($anio !== end($aniosSeccion))
+                    <span class="block font-normal text-amber-700 mt-1">Viendo {{ $anio }} como si fuera la última elección{{ in_array($seccion, ['meta', 'prioridades'], true) ? '; el avance usa los registros de hoy' : '' }}.</span>
+                @endif
+            </label>
+        @endif
+
         @if ($seccion === 'alcaldes' && $alcaldes)
             <label class="text-xs font-semibold text-slate-700">Elección a gobernación
                 <select wire:model.live="anio" class="{{ $select }}">

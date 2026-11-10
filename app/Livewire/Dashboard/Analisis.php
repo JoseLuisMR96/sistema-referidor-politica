@@ -72,6 +72,13 @@ class Analisis extends Component
         'participacion' => 'Más participación',
     ];
 
+    /**
+     * Secciones con el selector general de elección: se calculan como si el
+     * año elegido fuera la última elección. Tendencia, alcaldes, alianzas y
+     * puestos tienen su propio selector.
+     */
+    public const CON_ANIO = ['fortines', 'municipios', 'meta', 'conquistar', 'disputa', 'prioridades', 'maquinaria', 'testigos'];
+
     /** Secciones que todavía no están hechas */
     public const PROXIMAMENTE = [];
 
@@ -265,6 +272,20 @@ class Analisis extends Component
         $cargos = $departamento ? $analisis->cargos($departamento->id) : [];
         $datos = $departamento && $this->cargo ? $analisis->datos($departamento->id, $this->cargo) : null;
 
+        // Años que se pueden elegir en la sección; por defecto, el último
+        $aniosSeccion = [];
+        if ($datos && in_array($this->seccion, self::CON_ANIO, true)) {
+            $aniosSeccion = $this->seccion === 'maquinaria'
+                ? collect([EstrategiaElectoral::OPINION, ...EstrategiaElectoral::ESTRUCTURA])
+                    ->filter(fn ($c) => in_array($c, $cargos, true))
+                    ->flatMap(fn ($c) => $analisis->datos($departamento->id, $c)['anios'])
+                    ->unique()->sort()->values()->all()
+                : $datos['anios'];
+            if (! in_array($this->anio, $aniosSeccion, true)) {
+                $this->anio = $aniosSeccion ? end($aniosSeccion) : null;
+            }
+        }
+
         $fortines = null;
         $municipios = null;
         $tendencia = null;
@@ -274,13 +295,13 @@ class Analisis extends Component
         $mapa = null;
 
         if ($datos && $this->seccion === 'fortines' && $this->partido) {
-            $fortines = $analisis->fortines($departamento->id, $this->cargo, $this->partido);
+            $fortines = $analisis->fortines($departamento->id, $this->cargo, $this->partido, $this->anio);
             $fortines['municipios'] = $this->ordenar($fortines['municipios'], $fortines['ultimo']);
             $mapa = $this->mapaFortines($departamento, $fortines);
         }
 
         if ($datos && $this->seccion === 'municipios') {
-            $municipios = $analisis->municipios($departamento->id, $this->cargo);
+            $municipios = $analisis->municipios($departamento->id, $this->cargo, $this->anio);
             $mapa = $this->mapaMunicipios($departamento, $municipios);
         }
 
@@ -335,6 +356,7 @@ class Analisis extends Component
             'plan' => $plan,
             'tenantNombre' => app(TenantContext::class)->tenant()?->nombre,
             'mapa' => $mapa,
+            'aniosSeccion' => $aniosSeccion,
             'partidoCandidato' => app(TenantContext::class)->tenant()?->partido
                 ? Partidos::clave(app(TenantContext::class)->tenant()->partido) : null,
         ])->title('Análisis electoral');
@@ -423,14 +445,16 @@ class Analisis extends Component
                 if (! isset($partidos[$this->partidoMaq])) {
                     $this->partidoMaq = $clavePropia && isset($partidos[$clavePropia]) ? $clavePropia : array_key_first($partidos);
                 }
-                $m = $this->partidoMaq ? $e->maquinaria($departamento->id, $this->partidoMaq) : null;
-                $lideres = $e->lideres($departamento->id, $this->cargo, $this->soloPartido ? $this->partidoMaq : null);
+                $m = $this->partidoMaq ? $e->maquinaria($departamento->id, $this->partidoMaq, $this->anio) : null;
+                // Líderes del cargo elegido en su última elección hasta el año elegido
+                $anioLideres = collect($datos['anios'])->filter(fn ($a) => $a <= $this->anio)->last() ?? end($datos['anios']);
+                $lideres = $e->lideres($departamento->id, $this->cargo, $this->soloPartido ? $this->partidoMaq : null, 40, $anioLideres ?: null);
 
                 return [['maquinaria' => $m, 'partidos' => $partidos, 'lideres' => $lideres], $m ? $this->mapaMaquinaria($departamento, $m) : null];
 
             default:
                 $this->testigosDisponibles = $this->testigosDisponibles > 0 ? min($this->testigosDisponibles, 200_000) : null;
-                $t = $e->testigos($departamento->id, $this->cargo, $this->testigosDisponibles);
+                $t = $e->testigos($departamento->id, $this->cargo, $this->testigosDisponibles, $this->anio);
 
                 return [$t, $this->mapaTestigos($departamento, $t)];
         }
@@ -501,17 +525,17 @@ class Analisis extends Component
 
         switch ($this->seccion) {
             case 'meta':
-                $m = $plan->meta($departamento->id, $this->cargo, $registros, $this->metaManual, $this->curulesManual);
+                $m = $plan->meta($departamento->id, $this->cargo, $registros, $this->metaManual, $this->curulesManual, $this->anio);
 
                 return [$m, $m['aplica'] ? $this->mapaMeta($departamento, $m) : null];
 
             case 'conquistar':
-                $c = $plan->conquistar($departamento->id, $this->cargo);
+                $c = $plan->conquistar($departamento->id, $this->cargo, $this->anio);
 
                 return [$c, $this->mapaConquistar($departamento, $c)];
 
             case 'disputa':
-                $d = $plan->disputa($departamento->id, $this->cargo, $ideologias);
+                $d = $plan->disputa($departamento->id, $this->cargo, $ideologias, $this->anio);
 
                 return [$d, $this->mapaDisputa($departamento, $d)];
 
@@ -524,7 +548,7 @@ class Analisis extends Component
                 }
                 $bloque = array_key_exists($this->afinidad, PartidoIdeologia::BLOQUES) ? $this->afinidad : null;
                 $p = $plan->prioridades($departamento->id, $this->cargo, $bloque, $this->enfoque,
-                    $registros, $this->metaManual, $this->curulesManual, $ideologias);
+                    $registros, $this->metaManual, $this->curulesManual, $ideologias, $this->anio);
 
                 return [$p, $this->mapaPrioridades($departamento, $p)];
         }
