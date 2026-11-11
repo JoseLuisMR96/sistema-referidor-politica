@@ -55,6 +55,7 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
 - **Usuarios:** `users.tenant_id` admite nulo.
   - **Nulo = global:** elige el tenant en el selector del menú; "Todos los tenants" es solo para consultar.
   - **Con valor = restringido:** `TenantContext::id()` siempre devuelve su tenant, sin importar la sesión.
+  - **Alta de una campaña:** el dueño (global) crea el candidato y, en el mismo formulario, su cuenta (si escribe el correo): queda restringida a ese tenant con rol Administrador. El candidato agrega a su equipo en Usuarios; `UserCreate` fuerza su tenant, así que no puede crear globales ni usuarios de otro candidato. Al editar un candidato se ven sus usuarios y el enlace `users.create?tenant=`.
   - Solo los globales con `tenants.gestionar` administran tenants: listado en `/admin/tenants` ([Index](app/Livewire/Admin/Tenants/Index.php)) y registro o edición en `/admin/tenants/crear` y `/admin/tenants/{tenant}/editar` ([Formulario](app/Livewire/Admin/Tenants/Formulario.php)).
   - **Eliminar un candidato** ([EliminarTenant](app/Services/EliminarTenant.php)) borra todos sus datos en orden de FK, dentro de una transacción, y exige escribir su nombre para confirmar.
     - **Se niega si tiene usuarios restringidos:** `users.tenant_id` es SET NULL, así que esos usuarios quedarían **globales**.
@@ -386,7 +387,12 @@ Twilio **no manda `ButtonPayload`** en estas plantillas: llega el texto del bot�
 
 ## Autorización
 
-`spatie/laravel-permission` con roles **Administrador / Operador / Analista / Referidor** definidos en [RolesYPermisosSeeder.php](database/seeders/RolesYPermisosSeeder.php). Los aliases `role`, `permission`, `role_or_permission` se registran en [bootstrap/app.php](bootstrap/app.php).
+`spatie/laravel-permission`. Los roles, su descripción y sus permisos están en el catálogo [Roles](app/Support/Roles.php): Administrador (todo), Operador, Analista, Observador, Estratega, Coordinador territorial, Coordinador de referidos, Tesorero, Coordinador de testigos, Comunicaciones y Referidor. [RolesYPermisosSeeder.php](database/seeders/RolesYPermisosSeeder.php) crea los permisos y sincroniza los roles desde el catálogo en cada despliegue; falla si un rol usa un permiso que no existe. Para un rol nuevo, agrégalo al catálogo. Los formularios de usuario muestran la descripción.
+
+- **Página de inicio:** `/` y el login llevan a `Roles::inicio()`, la primera página que el usuario puede ver (`Roles::INICIO`). Así un rol sin `dashboard.ver`, como el Tesorero, no cae en un 403.
+- **Eliminar usuarios:** con `usuarios.eliminar` (`UserIndex::eliminar`). Nadie se borra a sí mismo; un restringido solo borra a los de su tenant y nunca a un global; no se puede borrar al último administrador global. Las FK a `users` son `nullOnDelete`, así que sus datos se conservan.
+
+Los aliases `role`, `permission`, `role_or_permission` se registran en [bootstrap/app.php](bootstrap/app.php).
 
 Patrón vigente — **doble verificación**: middleware `permission:x.y` en la ruta **y** `abort_unless(auth()->user()->can('x.y'), 403)` dentro del componente Livewire (en `mount()` o `render()`). Mantenlo en componentes nuevos; el middleware solo no protege peticiones Livewire posteriores.
 

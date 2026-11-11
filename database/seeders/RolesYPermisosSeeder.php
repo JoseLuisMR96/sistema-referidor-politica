@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Support\Roles;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -94,56 +95,15 @@ class RolesYPermisosSeeder extends Seeder
         // OJO: solo si estás seguro de que no quieres permisos “viejos”
         // Permission::whereNotIn('name', $permisos)->delete();
 
-        // 3) Roles (idempotente)
-        $rolAdmin = Role::firstOrCreate(['name' => 'Administrador']);
-        $rolOperador = Role::firstOrCreate(['name' => 'Operador']);
-        $rolAnalista = Role::firstOrCreate(['name' => 'Analista']);
-        $rolReferidor = Role::firstOrCreate(['name' => 'Referidor']);
-
-        // 4) Asignación (sync = “update”)
-        $rolAdmin->syncPermissions($permisos);
-
-        $rolOperador->syncPermissions([
-            'dashboard.ver',
-            'referidores.ver',
-            'pregoneros_referidos.ver',
-            'registros.ver_todos',
-            'registros.editar',
-            'registros.cambiar_estado',
-            'registros.exportar',
-            'reportes.ver',
-            'dashboard.exportar',
-            'redes.ver',
-            'historico.ver',
-            'eventos.ver',
-            'eventos.crear',
-            'eventos.editar',
-            'equipo.gestionar',
-            'presupuesto.ver',
-            'presupuesto.gestionar',
-            'diae.ver',
-            'diae.gestionar',
-        ]);
-
-        $rolAnalista->syncPermissions([
-            'dashboard.ver',
-            'referidores.ver',
-            'registros.ver_todos',
-            'importados.ver',
-            'importados.exportar',
-            'reportes.ver',
-            'dashboard.exportar',
-            'redes.ver',
-            'historico.ver',
-            'eventos.ver',
-            'diae.ver',
-        ]);
-
-        // Referidor: crea registros y ve los suyos
-        $rolReferidor->syncPermissions([
-            'dashboard.ver',
-            'registros.ver_propios',
-            'registros.crear',
-        ]);
+        // 3) Roles y su asignación (idempotente; sync = "update"). El catálogo
+        //    con la descripción de cada rol está en App\Support\Roles.
+        foreach (Roles::CATALOGO as $nombre => [, $permisosRol]) {
+            $desconocidos = array_diff($permisosRol, [...$permisos, '*']);
+            if ($desconocidos) {
+                throw new \LogicException("El rol {$nombre} usa permisos que no existen: ".implode(', ', $desconocidos));
+            }
+            Role::firstOrCreate(['name' => $nombre])
+                ->syncPermissions($permisosRol === ['*'] ? $permisos : $permisosRol);
+        }
     }
 }

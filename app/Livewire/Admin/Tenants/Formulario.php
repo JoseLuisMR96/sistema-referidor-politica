@@ -5,10 +5,17 @@ namespace App\Livewire\Admin\Tenants;
 use App\Enums\CargoEnum;
 use App\Models\Departamento;
 use App\Models\Municipio;
+use App\Models\PartidoIdeologia;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Support\Marca;
+use App\Support\Partidos;
+use App\Support\Roles;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -16,6 +23,10 @@ use Livewire\WithFileUploads;
  * Registro y edición de un candidato (tenant): datos, circunscripción e
  * identidad visual. El listado está en Index. Solo usuarios globales con
  * tenants.gestionar.
+ *
+ * Al crearlo se puede crear también la cuenta del candidato: un usuario
+ * restringido a su tenant con rol Administrador, que después agrega a su
+ * equipo desde Usuarios (solo puede crear usuarios de su candidato).
  */
 class Formulario extends Component
 {
@@ -59,6 +70,23 @@ class Formulario extends Component
 
     public $fondo = null;  // imagen decorativa detrás del contenido (bandera, etc.)
 
+    /**
+     * Select del partido: '' = sin partido, OTRO = se escribe a mano, o una
+     * clave de partidos_ideologia (así el Análisis reconoce su partido).
+     */
+    public string $partidoOpcion = '';
+
+    public const OTRO_PARTIDO = '__otro';
+
+    // --- Cuenta del candidato (solo al crear; se crea si se escribe el correo) ---
+    public string $cuentaNombre = '';
+
+    public string $cuentaEmail = '';
+
+    public string $cuentaPassword = '';
+
+    public string $cuentaPassword_confirmation = '';
+
     private function autorizar(): void
     {
         $user = auth()->user();
@@ -86,6 +114,7 @@ class Formulario extends Component
         $this->departamento_id = $tenant->departamento_id;
         $this->municipio_id = $tenant->municipio_id;
         $this->partido = (string) $tenant->partido;
+        $this->partidoOpcion = $this->opcionDe($this->partido);
         $this->slogan = (string) $tenant->slogan;
         $this->color_primario = (string) $tenant->color_primario;
         $this->color_secundario = (string) $tenant->color_secundario;
@@ -182,6 +211,7 @@ class Formulario extends Component
         $this->autorizar();
 
         $data = $this->validate();
+        $cuenta = $this->validarCuenta();
         $cargo = CargoEnum::from($data['cargo']);
 
         $data['descripcion'] = $data['descripcion'] ?: null;
@@ -203,8 +233,18 @@ class Formulario extends Component
             $tenant->update($data);
             session()->flash('success', "Candidato \"{$tenant->nombre}\" actualizado.");
         } else {
-            $tenant = Tenant::create($data);
-            session()->flash('success', "Candidato \"{$tenant->nombre}\" creado. Elígelo en el menú lateral para empezar a cargarle datos.");
+            // El candidato y su cuenta van juntos: si falla uno, no queda ninguno
+            $tenant = DB::transaction(function () use ($data, $cuenta) {
+                $tenant = Tenant::create($data);
+                if ($cuenta) {
+                    User::create($cuenta + ['tenant_id' => $tenant->id])->assignRole(Roles::ADMINISTRADOR);
+                }
+
+                return $tenant;
+            });
+            session()->flash('success', "Candidato \"{$tenant->nombre}\" creado".($cuenta
+                ? ". Su cuenta ({$cuenta['email']}) ya puede entrar y agregar a su equipo en Usuarios."
+                : '. Elígelo en el menú lateral para empezar a cargarle datos.'));
         }
 
         $this->guardarArchivo($tenant, 'logo', $this->logo);
@@ -213,6 +253,60 @@ class Formulario extends Component
 
         // Recarga completa: el menú lateral también lista los candidatos
         $this->redirectRoute('tenants.index');
+    }
+
+    /** Partidos de la tabla de ideología (lista curada, por clave). */
+    private function partidosConocidos(): array
+    {
+        return PartidoIdeologia::query()->orderBy('clave')->pluck('clave')->all();
+    }
+
+    /** Opción del select que corresponde a un nombre de partido guardado. */
+    private function opcionDe(string $partido): string
+    {
+        if (trim($partido) === '') {
+            return '';
+        }
+        $clave = Partidos::clave($partido);
+
+        return in_array($clave, $this->partidosConocidos(), true) ? $clave : self::OTRO_PARTIDO;
+    }
+
+    public function updatedPartidoOpcion(): void
+    {
+        $this->partido = match ($this->partidoOpcion) {
+            '' => '',
+            // Si ya había uno escrito a mano, se deja para editarlo
+            self::OTRO_PARTIDO => $this->opcionDe($this->partido) === self::OTRO_PARTIDO ? $this->partido : '',
+            default => in_array($this->partidoOpcion, $this->partidosConocidos(), true) ? $this->partidoOpcion : '',
+        };
+    }
+
+    /**
+     * Datos de la cuenta del candidato, validados (null = no se crea). Solo
+     * al crear el candidato; después se agregan usuarios desde Usuarios.
+     *
+     * @return array{name:string, email:string, password:string}|null
+     */
+    private function validarCuenta(): ?array
+    {
+        if ($this->tenant || (trim($this->cuentaEmail) === '' && $this->cuentaPassword === '')) {
+            return null;
+        }
+
+        $this->cuentaNombre = trim($this->cuentaNombre) ?: $this->nombre;
+        $v = $this->validate([
+            'cuentaNombre' => ['required', 'string', 'min:3', 'max:190'],
+            'cuentaEmail' => ['required', 'email', 'max:190', 'unique:users,email'],
+            'cuentaPassword' => ['required', 'confirmed', Password::min(8)],
+        ], [
+            'cuentaEmail.required' => 'Escribe el correo con que el candidato va a entrar.',
+            'cuentaEmail.unique' => 'Ya hay un usuario con ese correo.',
+            'cuentaPassword.required' => 'Ponle una contraseña inicial (mínimo 8 caracteres).',
+            'cuentaPassword.confirmed' => 'Las contraseñas no coinciden.',
+        ]);
+
+        return ['name' => $v['cuentaNombre'], 'email' => $v['cuentaEmail'], 'password' => Hash::make($v['cuentaPassword'])];
     }
 
     /** Guarda el logo, la foto o el fondo y borra el anterior. */
@@ -258,6 +352,11 @@ class Formulario extends Component
 
         return view('livewire.admin.tenants.formulario', [
             'contrastePrimario' => $contrastePrimario,
+            'partidosConocidos' => $this->partidosConocidos(),
+            // Al editar: quiénes entran por este candidato
+            'usuarios' => $this->tenant
+                ? User::where('tenant_id', $this->tenant->id)->with('roles:id,name')->orderBy('name')->get(['id', 'name', 'email'])
+                : collect(),
             'cargos' => CargoEnum::cases(),
             'pideDepartamento' => (bool) $cargo?->requiereDepartamento(),
             'pideMunicipio' => (bool) $cargo?->requiereMunicipio(),
