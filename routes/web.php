@@ -59,8 +59,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::get(
     '/',
+    // Cada usuario entra a la primera página que su rol puede ver
     fn () => auth()->check()
-        ? redirect()->route('dashboard')
+        ? redirect(\App\Support\Roles::inicio(auth()->user()))
         : redirect()->route('login')
 )->name('home');
 
@@ -198,7 +199,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/registros/{publicRegistration}', RegistrationsShow::class)
             ->name('registrations.show');
 
-        // Edit SOLO Admin
+        // Editar: Administrador y Operador (registros.editar)
         Route::get('/registros/{publicRegistration}/editar', RegistrationsEdit::class)
             ->middleware('permission:registros.editar')
             ->name('registrations.edit');

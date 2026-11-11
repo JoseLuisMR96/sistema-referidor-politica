@@ -158,10 +158,15 @@
                     <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                         @foreach ($availableRoles as $role)
                             <label
-                                class="flex items-center gap-2 rounded-md border bg-white px-3 py-2 hover:bg-gray-50">
+                                class="flex items-start gap-2 rounded-md border bg-white px-3 py-2 hover:bg-gray-50">
                                 <input type="checkbox" value="{{ $role->name }}" wire:model.live="roles"
-                                    class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                                <span class="text-sm text-gray-700">{{ $role->name }}</span>
+                                    class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                <span class="min-w-0">
+                                    <span class="block text-sm font-semibold text-gray-700">{{ $role->name }}</span>
+                                    @if ($d = \App\Support\Roles::descripcion($role->name))
+                                        <span class="block text-xs text-slate-500">{{ $d }}</span>
+                                    @endif
+                                </span>
                             </label>
                         @endforeach
                     </div>

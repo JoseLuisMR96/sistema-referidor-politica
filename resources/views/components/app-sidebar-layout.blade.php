@@ -42,7 +42,7 @@
             {{-- Brand --}}
             <div class="h-16 shrink-0 flex items-center px-6 border-b">
                 @if ($tenantActual?->logoUrl())
-                    <a href="{{ route('dashboard') }}" class="flex items-center gap-3 min-w-0">
+                    <a href="{{ route('home') }}" class="flex items-center gap-3 min-w-0">
                         <img src="{{ $tenantActual->logoUrl() }}" alt="Logo {{ $tenantActual->partido ?: $tenantActual->nombre }}"
                             class="h-10 w-10 rounded-lg object-contain">
                         <div class="min-w-0">
@@ -51,7 +51,7 @@
                         </div>
                     </a>
                 @else
-                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 min-w-0">
+                <a href="{{ route('home') }}" class="flex items-center gap-3 min-w-0">
 
                     {{-- Logo completo (urna + nombre); si no carga, el nombre en texto --}}
                     <div class="min-w-0">
@@ -161,23 +161,23 @@
                     @endcan
                 @endcanany
 
-                @canany(['referidores.ver', 'pregoneros_referidores.ver'])
+                @can('referidores.ver')
                     <div class="{{ $tituloSeccion }}">Equipo de campo</div>
 
-                    @can('referidores.ver')
-                        <x-sidebar-link route="referrers.index" pattern="referrers.*" icon="user-add">
-                            Referidores
-                        </x-sidebar-link>
-                    @endcan
+                    <x-sidebar-link route="referrers.index" pattern="referrers.*" icon="user-add">
+                        Referidores
+                    </x-sidebar-link>
 
+                    {{-- Oculto del menú (la ruta /admin/referidores-pregoneros sigue funcionando)
                     @can('pregoneros_referidores.ver')
                         <x-sidebar-link route="pregoneros.referidores.index" pattern="pregoneros.referidores.*" icon="megaphone">
                             Referidores pregoneros
                         </x-sidebar-link>
                     @endcan
-                @endcanany
+                    --}}
+                @endcan
 
-                @canany(['eventos.ver', 'equipo.gestionar'])
+                @canany(['eventos.ver', 'equipo.gestionar', 'presupuesto.ver', 'diae.ver'])
                     <div class="{{ $tituloSeccion }}">Territorio</div>
 
                     @can('eventos.ver')
@@ -192,9 +192,11 @@
                         </x-sidebar-link>
                     @endcan
 
-                    <x-sidebar-link route="equipo.index" icon="users">
-                        Equipo de campaña
-                    </x-sidebar-link>
+                    @canany(['eventos.ver', 'equipo.gestionar'])
+                        <x-sidebar-link route="equipo.index" icon="users">
+                            Equipo de campaña
+                        </x-sidebar-link>
+                    @endcanany
 
                     @can('presupuesto.ver')
                         <x-sidebar-link route="presupuesto.index" icon="document-text">

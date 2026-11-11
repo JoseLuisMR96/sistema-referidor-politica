@@ -12,9 +12,13 @@ use Spatie\Permission\Models\Role;
 class UserCreate extends Component
 {
     public string $name = '';
+
     public string $email = '';
+
     public string $password = '';
+
     public string $password_confirmation = '';
+
     public array $roles = [];
 
     // '' = usuario global (ve todos los tenants); id = restringido a ese tenant
@@ -24,9 +28,12 @@ class UserCreate extends Component
     {
         $this->authorize('usuarios.crear');
 
-        // Un usuario restringido solo crea usuarios de su propio tenant
+        // Un usuario restringido solo crea usuarios de su propio tenant.
+        // Un global puede llegar con el candidato elegido (?tenant=, desde su ficha).
         if (! auth()->user()->esGlobal()) {
             $this->tenant_id = (string) auth()->user()->tenant_id;
+        } elseif (($t = request()->integer('tenant')) && \App\Models\Tenant::whereKey($t)->exists()) {
+            $this->tenant_id = (string) $t;
         }
     }
 

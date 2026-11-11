@@ -91,7 +91,17 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-semibold">Partido o movimiento</label>
-                            <input wire:model.live.debounce.400ms="partido" class="mt-1 w-full rounded-md border-gray-300" />
+                            <select wire:model.live="partidoOpcion" class="mt-1 w-full rounded-md border-gray-300">
+                                <option value="">— Sin partido —</option>
+                                @foreach ($partidosConocidos as $p)
+                                    <option value="{{ $p }}">{{ $p }}</option>
+                                @endforeach
+                                <option value="{{ \App\Livewire\Admin\Tenants\Formulario::OTRO_PARTIDO }}">Otro (escribirlo)…</option>
+                            </select>
+                            @if ($partidoOpcion === \App\Livewire\Admin\Tenants\Formulario::OTRO_PARTIDO)
+                                <input wire:model.live.debounce.400ms="partido" class="mt-2 w-full rounded-md border-gray-300" placeholder="Nombre del partido, movimiento o coalición" />
+                                <div class="text-xs text-gray-500 mt-1">Si no está en la lista, el Análisis no sabrá su ideología hasta que lo clasifiques en Ideología de partidos.</div>
+                            @endif
                             @error('partido') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
                         </div>
 
@@ -265,6 +275,65 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                {{-- Cuenta del candidato (al crear) o sus usuarios (al editar) --}}
+                <div class="border-t pt-4 space-y-3">
+                    <div>
+                        <div class="text-sm font-semibold">{{ $tenant ? 'Usuarios del candidato' : 'Cuenta del candidato' }}</div>
+                        <div class="text-xs text-gray-500">
+                            Queda como <b>Administrador de su campaña</b>: ve y maneja solo lo de este candidato, y agrega a su equipo en <b>Usuarios</b>
+                            (todos quedan amarrados a este candidato).
+                        </div>
+                    </div>
+
+                    @if (! $tenant)
+                        <div class="text-xs text-gray-500">Escribe su correo para crearle la cuenta ahora. Si lo dejas vacío, se crea solo el candidato y la cuenta la haces después en Usuarios.</div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold">Nombre</label>
+                                    <input wire:model="cuentaNombre" class="mt-1 w-full rounded-md border-gray-300" placeholder="{{ $nombre ?: 'Igual al del candidato' }}" />
+                                    @error('cuentaNombre') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold">Correo (para entrar)</label>
+                                    <input type="email" wire:model="cuentaEmail" autocomplete="off" class="mt-1 w-full rounded-md border-gray-300" />
+                                    @error('cuentaEmail') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold">Contraseña inicial</label>
+                                    <input type="password" wire:model="cuentaPassword" autocomplete="new-password" class="mt-1 w-full rounded-md border-gray-300" />
+                                    @error('cuentaPassword') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold">Repite la contraseña</label>
+                                    <input type="password" wire:model="cuentaPassword_confirmation" autocomplete="new-password" class="mt-1 w-full rounded-md border-gray-300" />
+                                </div>
+                            </div>
+                            <div class="text-xs text-gray-500">Pásale la contraseña por un medio privado y pídele que la cambie en su perfil.</div>
+                    @else
+                        <div class="divide-y rounded-md border">
+                            @forelse ($usuarios as $u)
+                                <div class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                                    <div class="min-w-0">
+                                        <div class="font-semibold truncate">{{ $u->name }}</div>
+                                        <div class="text-xs text-gray-500 truncate">{{ $u->email }}</div>
+                                    </div>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <span class="text-xs text-gray-600">{{ $u->roles->pluck('name')->implode(', ') ?: 'Sin rol' }}</span>
+                                        @can('usuarios.editar')
+                                            <a href="{{ route('users.edit', $u->id) }}" class="text-xs font-semibold text-indigo-700 hover:underline">Editar</a>
+                                        @endcan
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="px-3 py-2 text-sm text-gray-500">Este candidato todavía no tiene usuarios.</div>
+                            @endforelse
+                        </div>
+                        @can('usuarios.crear')
+                            <a href="{{ route('users.create', ['tenant' => $tenant->id]) }}" class="inline-block text-sm font-semibold text-indigo-700 hover:underline">+ Crear usuario para este candidato</a>
+                        @endcan
+                    @endif
                 </div>
 
                 <div class="flex justify-end gap-2 border-t pt-4">

@@ -96,7 +96,7 @@
                                    value="{{ $role->id }}" wire:model.live="roleIds">
                             <div class="min-w-0">
                                 <div class="text-sm font-semibold text-slate-800">{{ $role->name }}</div>
-                                <div class="text-xs text-slate-500">Acceso por rol</div>
+                                <div class="text-xs text-slate-500">{{ \App\Support\Roles::descripcion($role->name) ?? 'Acceso por rol' }}</div>
                             </div>
                         </label>
                     @endforeach

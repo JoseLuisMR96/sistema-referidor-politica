@@ -26,6 +26,13 @@
 <div class="py-6">
     <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-4">
 
+        @if (session('success'))
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ session('error') }}</div>
+        @endif
+
         {{-- Toolbar --}}
         <div class="bg-white shadow-sm sm:rounded-lg p-6">
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
@@ -159,7 +166,8 @@
                                         @can('usuarios.eliminar')
                                             <button
                                                 type="button"
-                                                wire:click="$dispatch('confirm-delete-user', { id: {{ $u->id }} })"
+                                                wire:click="eliminar({{ $u->id }})"
+                                                wire:confirm="¿Eliminar a {{ $u->name }}? No se puede deshacer. Sus registros y eventos se conservan."
                                                 class="inline-flex items-center justify-center rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm
                                                        hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2"
                                             >

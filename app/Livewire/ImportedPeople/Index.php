@@ -11,8 +11,11 @@ class Index extends Component
     use WithPagination;
 
     public string $search = '';
+
     public ?string $batch = '';
+
     public ?string $municipality = '';
+
     public int $perPage = 25;
 
     protected $queryString = [
@@ -22,10 +25,25 @@ class Index extends Component
         'perPage' => ['except' => 25],
     ];
 
-    public function updatingSearch(): void { $this->resetPage(); }
-    public function updatingPerPage(): void { $this->resetPage(); }
-    public function updatingBatch(): void { $this->resetPage(); }
-    public function updatingMunicipality(): void { $this->resetPage(); }
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingPerPage(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingBatch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingMunicipality(): void
+    {
+        $this->resetPage();
+    }
 
     public function clearFilters(): void
     {
@@ -35,19 +53,21 @@ class Index extends Component
 
     public function render()
     {
+        // El middleware de la ruta no corre en las peticiones de Livewire
+        abort_unless(auth()->user()->can('importados.ver'), 403);
         $q = trim($this->search);
 
         $rows = ImportedPerson::query()
-            ->when($this->batch, fn($qq) => $qq->where('batch_id', $this->batch))
-            ->when($this->municipality, fn($qq) => $qq->where('voting_municipality', $this->municipality))
+            ->when($this->batch, fn ($qq) => $qq->where('batch_id', $this->batch))
+            ->when($this->municipality, fn ($qq) => $qq->where('voting_municipality', $this->municipality))
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($w) use ($q) {
                     $w->where('full_name', 'like', "%{$q}%")
-                      ->orWhere('document_number', 'like', "%{$q}%")
-                      ->orWhere('phone', 'like', "%{$q}%")
-                      ->orWhere('voting_place', 'like', "%{$q}%")
-                      ->orWhere('voting_municipality', 'like', "%{$q}%")
-                      ->orWhere('batch_id', 'like', "%{$q}%");
+                        ->orWhere('document_number', 'like', "%{$q}%")
+                        ->orWhere('phone', 'like', "%{$q}%")
+                        ->orWhere('voting_place', 'like', "%{$q}%")
+                        ->orWhere('voting_municipality', 'like', "%{$q}%")
+                        ->orWhere('batch_id', 'like', "%{$q}%");
                 });
             })
             ->orderByDesc('id')
