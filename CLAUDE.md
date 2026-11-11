@@ -133,7 +133,10 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
   - **Credencial:** la API key va cifrada en `integraciones` (proveedor `anthropic`).
   - **Interfaz:** el resto del código depende de la interfaz `ClasificadorTono`; los tests enlazan un clasificador falso.
   - **Privacidad, no la rompas:** a Meta se le piden solo `id,text` (nunca el autor). El texto vive en memoria. En la base quedan los conteos y temas por día (`redes_tono`) y una huella HMAC del id (`redes_comentarios_vistos`) para no reclasificar.
-- **Instalar el SDK en local:** `composer require`/`install` necesita `--ignore-platform-req=php`, porque el PHP local es 8.5 y `phpspreadsheet` declara soporte hasta 8.4. Producción usa 8.2. En Windows, si falla con "Could not delete…", borra `vendor/anthropic-ai` y reintenta: es un bloqueo de archivos del IDE o del antivirus.
+- **Dependencias en local:** `composer.json` fija `config.platform.php = 8.3.0`, porque en producción la web corre PHP 8.3 y la consola 8.4. Así Composer nunca elige versiones que allá no corran, y no hace falta `--ignore-platform-req` aunque el PHP local sea 8.5.
+  - En Windows, si `composer install`/`update` falla con "Could not delete…" (bloqueo del antivirus o del indexador), corre el comando en una carpeta temporal con copia de `composer.json` y `composer.lock` (`--no-scripts --no-autoloader`), copia el `vendor` con `robocopy /MIR` y corre `composer dump-autoload` en el proyecto.
+  - Revisa `composer audit` de vez en cuando: en 2026-11 había fallos en Laravel, Guzzle, PhpSpreadsheet y Livewire.
+- **Cabeceras de seguridad:** [CabecerasSeguridad](app/Http/Middleware/CabecerasSeguridad.php) va en todas las respuestas: `X-Frame-Options: SAMEORIGIN` (la app no se puede meter en un iframe de otro sitio), nosniff, HSTS (solo por https) y sin `X-Powered-By`.
 - **No hacer scraping ni guardar personas con inclinación política inferida.** Solo cifras agregadas (Ley 1581: la opinión política es dato sensible).
 
 ## Histórico electoral

@@ -2,41 +2,51 @@
 
 namespace App\Livewire\Public;
 
-use Livewire\Component;
-use App\Models\Referrer;
-use App\Models\Municipio;
 use App\Models\Departamento;
-use Illuminate\Validation\Rule;
+use App\Models\Municipio;
 use App\Models\PublicRegistration;
+use App\Models\Referrer;
 use App\Models\Tenant;
-use Livewire\Attributes\Locked;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
+use Livewire\Component;
 
 class RegistrationForm extends Component
 {
     #[Locked]
     public string $ref = '';
+
     public ?Referrer $referrer = null;
 
     public string $full_name = '';
+
     public string $document_type = 'CC';
+
     public string $document_number = '';
+
     public ?int $age = null;
+
     public string $gender = '';
+
     public string $phone = '';
 
     public ?int $residence_department_id = null;
+
     public ?int $voting_department_id = null;
 
     public ?int $residence_municipality_id = null;
+
     public ?int $voting_municipality_id = null;
 
     public array $departamentos = [];
+
     public bool $enviado = false;
 
-    public string $debug = '';
-
     private const MAX_ENVIOS_POR_MINUTO = 30;
+
+    /** Respuestas de "documento ya registrado" por IP cada 10 minutos. */
+    private const MAX_REPETIDOS = 10;
 
     protected $queryString = [
         'ref' => ['except' => ''],
@@ -112,7 +122,9 @@ class RegistrationForm extends Component
     // Municipios computados
     public function getMunicipiosResidenciaProperty()
     {
-        if (! $this->residence_department_id) return collect();
+        if (! $this->residence_department_id) {
+            return collect();
+        }
 
         return Municipio::query()
             ->where('departamento_id', (int) $this->residence_department_id)
@@ -123,7 +135,9 @@ class RegistrationForm extends Component
 
     public function getMunicipiosVotoProperty()
     {
-        if (! $this->voting_department_id) return collect();
+        if (! $this->voting_department_id) {
+            return collect();
+        }
 
         return Municipio::query()
             ->where('departamento_id', (int) $this->voting_department_id)
@@ -175,6 +189,7 @@ class RegistrationForm extends Component
 
         if (RateLimiter::tooManyAttempts($key, self::MAX_ENVIOS_POR_MINUTO)) {
             $this->addError('ref', 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.');
+
             return;
         }
 
@@ -187,11 +202,13 @@ class RegistrationForm extends Component
 
         if (! $this->referrer) {
             $this->addError('ref', 'El código de referido no es válido o no existe.');
+
             return;
         }
 
         if (! $this->referrer->is_active) {
             $this->addError('ref', 'Este link/código fue desactivado. Por favor contáctate con VoteuSoft para solicitar uno nuevo.');
+
             return;
         }
 
@@ -206,7 +223,21 @@ class RegistrationForm extends Component
             ->exists();
 
         if ($exists) {
+            // Responder "ya está registrado" deja saber si una cédula está en la
+            // base. Una persona real choca con esto una o dos veces; quien
+            // prueba cédulas en serie, muchas. Se limita aparte del límite
+            // general (que no se baja: tras la CDN varias personas pueden
+            // compartir IP).
+            $claveRepetidos = 'registro-repetido:'.request()->ip();
+            if (RateLimiter::tooManyAttempts($claveRepetidos, self::MAX_REPETIDOS)) {
+                $this->addError('ref', 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.');
+
+                return;
+            }
+            RateLimiter::hit($claveRepetidos, 600);
+
             $this->addError('document_number', 'Este documento ya está registrado.');
+
             return;
         }
 
@@ -252,7 +283,6 @@ class RegistrationForm extends Component
 
         $this->precargarLugar();
     }
-
 
     public function render()
     {
