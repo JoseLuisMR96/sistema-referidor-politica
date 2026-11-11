@@ -187,10 +187,6 @@
                     </div>
                 </div>
 
-                @if ($debug)
-                    <div class="mt-2 text-xs text-blue-600">{{ $debug }}</div>
-                @endif
-
                 @error('ref')
                     <div class="rounded-xl border border-red-200 bg-red-50 p-3 text-red-700 text-sm">
                         {{ $message }}
