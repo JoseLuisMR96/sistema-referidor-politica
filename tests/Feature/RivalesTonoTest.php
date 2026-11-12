@@ -289,6 +289,32 @@ class RivalesTonoTest extends TestCase
             ->assertSee('seguridad · 3');
     }
 
+    public function test_la_grafica_semanal_suma_los_rivales_solo_si_hay(): void
+    {
+        $propia = RedCuenta::create(['red' => 'instagram', 'usuario' => 'wilmar.barbosa']);
+        $this->foto($propia, today()->toDateString(), 20000);
+
+        // Sin rivales: la gráfica y la tabla quedan solo con el candidato
+        $this->actingAs($this->admin($this->wilmar))->get('/dashboard/redes')
+            ->assertOk()
+            ->assertSee('Seguidores por semana')
+            ->assertDontSee('Crecimiento %')
+            ->assertDontSee('Las líneas punteadas son los rivales');
+
+        $rival = RedCuenta::create(['red' => 'instagram', 'usuario' => 'juanperez', 'tipo' => 'rival', 'etiqueta' => 'Juan Pérez']);
+        $this->foto($rival, today()->toDateString(), 15000);
+
+        $html = $this->actingAs($this->admin($this->wilmar))->get('/dashboard/redes')
+            ->assertOk()
+            ->assertSee('Crecimiento %')
+            ->assertSee('Las líneas punteadas son los rivales')
+            ->getContent();
+
+        // El rival va en los datos de la gráfica (con sus semanas) y en la tabla de cuentas
+        $this->assertMatchesRegularExpression('/const rivales = JSON\.parse\(\'\[\{[^;]*\\\\u0022usuario\\\\u0022:\\\\u0022juanperez\\\\u0022[^;]*\\\\u0022semanas\\\\u0022:\[/', $html);
+        $this->assertStringContainsString('>Rival</span>', $html);
+    }
+
     public function test_dashboard_explica_que_falta_el_token_para_el_tono(): void
     {
         RedCuenta::create(['red' => 'instagram', 'usuario' => 'wilmar.barbosa']);

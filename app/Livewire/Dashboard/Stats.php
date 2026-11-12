@@ -2,29 +2,39 @@
 
 namespace App\Livewire\Dashboard;
 
-use Livewire\Component;
 use App\Models\PublicRegistration;
 use App\Models\Referrer;
 use App\Services\DashboardStats;
+use App\Services\EstimacionVotos;
 use App\Support\TenantContext;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Livewire\Component;
 
 class Stats extends Component
 {
     public int $total = 0;
+
     public int $hoy = 0;
+
     public int $ultimos7 = 0;
 
     public array $topReferrers = [];
+
     public array $municipiosVotan = [];
+
     public array $generos = [];
+
     public array $rangosEdad = [];
+
     public array $conteoPorMunicipio = [];
 
     // Apoyo dentro de la circunscripción del candidato elegido (null en
     // "Todos los tenants" o si al tenant le falta cargo/lugar)
     public ?array $circunscripcion = null;
+
+    // Votos que podrían salir de los registros (ver EstimacionVotos)
+    public ?array $estimacion = null;
 
     // Departamento con el que abre el mapa
     public string $deptoMapa = 'META';
@@ -79,6 +89,7 @@ class Stats extends Component
 
         if ($tenant) {
             $this->circunscripcion = $stats->circunscripcion($tenant);
+            $this->estimacion = app(EstimacionVotos::class)->calcular($tenant);
             $this->deptoMapa = $tenant->departamento?->nombre ?? $this->deptoMapa;
         }
     }

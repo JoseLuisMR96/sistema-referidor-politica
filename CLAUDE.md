@@ -82,6 +82,11 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
   - **municipal** (Alcaldía, Concejo, JAL): departamento y municipio.
 
   `DashboardStats::circunscripcion()` cuenta los registros por **municipio de votación (FK)** dentro de esa zona: los que pueden votar por el candidato, los que votan fuera y los que no tienen municipio. El formulario público arranca en el lugar del candidato, y el mapa del dashboard en su departamento.
+- **Votos probables** ([EstimacionVotos](app/Services/EstimacionVotos.php), tarjeta del dashboard de registros): un registro es una promesa, así que se descuenta = registros × participación × fidelidad, por municipio.
+  - **Participación:** la de la última elección del cargo en ese municipio (`AnalisisElectoral::municipios()`, votos válidos / potencial, tope 95 %); sin dato, el promedio del departamento.
+  - **Fidelidad:** supuesto en tres escenarios (`FIDELIDAD`: 30 / 50 / 70 %) que se mueven en pantalla con Alpine, sin volver al servidor.
+  - **Qué no cuenta:** los importados del padrón, los que votan fuera de la circunscripción y los que no tienen municipio.
+  - Se presenta como **rango entre supuestos**, no como margen de error estadístico. Compara con la meta de `PlanCampania::meta()` (no en cargos nacionales). Después de la elección se puede calibrar la fidelidad con los resultados o los E-14.
 - **Identidad visual (marca):** el tenant tiene `partido`, `slogan`, `color_primario`, `color_secundario`, `logo_path`, `foto_path` y `fondo_path` (imagen decorativa fija detrás del contenido, con opacidad baja). Las URLs de `marca.archivo` son **relativas**: así funcionan en cualquier dominio, aunque `APP_URL` sea otro. Las imágenes van en el disco `public` y se sirven por la ruta `marca.archivo` (`/marca/{slug}/{logo|foto}`), así no depende de `storage:link`. No se aceptan SVG.
   - **Cómo cambia el color de toda la app:** las vistas usan clases `indigo-*` como color de marca. En [tailwind.config.js](tailwind.config.js), `indigo` lee variables CSS `--marca-50…950`, cuyos valores por defecto (el índigo original) están en [app.css](resources/css/app.css). El componente `<x-marca :tenant>` imprime en el `<head>` la paleta del candidato generada por [Marca](app/Support/Marca.php): el color elegido queda en el tono 600 y los demás tonos salen de mezclarlo con blanco o negro.
   - **Color secundario:** clases `secundario` y `secundario-texto`, que también son variables.
@@ -123,6 +128,7 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
   - Los rivales son otros candidatos al mismo cargo. **Solo Instagram** (Business Discovery), nunca con token.
   - `RedesStats::resumen()` y los totales **excluyen** rivales.
   - `rivales()` compara el Instagram del candidato con los rivales por crecimiento en 7 días y por engagement (interacciones de la semana por cada 100 seguidores).
+  - La gráfica "Seguidores por semana" y la tabla de cuentas suman a los rivales (línea punteada y etiqueta "Rival") **solo si hay alguno**. Como un rival puede tener muchos más seguidores, la gráfica tiene el modo "Crecimiento %" (cambio frente a la primera semana con datos de cada cuenta). Los totales siguen sin rivales.
 - **Tono de los comentarios:** [AnalizadorComentarios](app/Services/Redes/Tono/AnalizadorComentarios.php).
   - **Requisitos:** solo cuentas propias con **token del candidato**, porque Meta no da comentarios ajenos.
   - **Cuándo corre:** en `redes:sincronizar` y con el botón "Analizar comentarios".
