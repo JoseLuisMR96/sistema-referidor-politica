@@ -8,6 +8,7 @@ use App\Support\PhoneNumber;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
@@ -45,6 +46,9 @@ class Equipo extends Component
         abort_unless(auth()->user()->canAny(['equipo.gestionar', 'eventos.ver']), 403);
     }
 
+    // El botón del encabezado queda fuera del componente (lo dibuja el layout),
+    // así que no puede usar wire:click: dispara este evento con Livewire.dispatch().
+    #[On('equipo-abrir')]
     public function abrir(?int $id = null): void
     {
         $this->autorizar();

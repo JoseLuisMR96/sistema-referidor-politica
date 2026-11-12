@@ -13,6 +13,7 @@ use App\Services\Territorio\PresupuestoCampana;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -75,6 +76,9 @@ class Index extends Component
 
     // ===================== Gastos =====================
 
+    // El botón del encabezado queda fuera del componente (lo dibuja el layout),
+    // así que no puede usar wire:click: dispara este evento con Livewire.dispatch().
+    #[On('presupuesto-gasto')]
     public function abrirGasto(?int $id = null): void
     {
         abort_unless($this->puede(), 403);
@@ -170,6 +174,7 @@ class Index extends Component
 
     // ===================== Presupuesto =====================
 
+    #[On('presupuesto-editar')]
     public function abrirPresupuesto(): void
     {
         abort_unless($this->puede(), 403);

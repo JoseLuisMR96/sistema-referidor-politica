@@ -13,9 +13,9 @@
         @if ($tenant && $puede)
             <div class="flex flex-wrap items-center gap-2">
                 @if ($actual)
-                    <button type="button" wire:click="abrirEleccion" class="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-gray-50">Editar elección</button>
+                    <button type="button" x-data x-on:click="Livewire.dispatch('diae-eleccion')" class="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-gray-50">Editar elección</button>
                 @endif
-                <button type="button" wire:click="abrirEleccion(true)" class="rounded-xl {{ $actual ? 'border px-3 py-2 hover:bg-gray-50' : 'bg-indigo-600 px-4 py-2.5 text-white hover:bg-indigo-700' }} text-sm font-semibold">➕ Nueva elección</button>
+                <button type="button" x-data x-on:click="Livewire.dispatch('diae-eleccion', { nueva: true })" class="rounded-xl {{ $actual ? 'border px-3 py-2 hover:bg-gray-50' : 'bg-indigo-600 px-4 py-2.5 text-white hover:bg-indigo-700' }} text-sm font-semibold">➕ Nueva elección</button>
             </div>
         @endif
     </div>

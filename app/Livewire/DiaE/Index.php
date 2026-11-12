@@ -12,6 +12,7 @@ use App\Support\LugaresCampana;
 use App\Support\PhoneNumber;
 use App\Support\TenantContext;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
@@ -56,6 +57,9 @@ class Index extends Component
 
     // ===================== Elección =====================
 
+    // El botón del encabezado queda fuera del componente (lo dibuja el layout),
+    // así que no puede usar wire:click: dispara este evento con Livewire.dispatch().
+    #[On('diae-eleccion')]
     public function abrirEleccion(bool $nueva = false): void
     {
         abort_unless($this->puede(), 403);

@@ -18,8 +18,8 @@
             <div class="flex flex-wrap items-center gap-2">
                 <a href="{{ route('presupuesto.exportar') }}" class="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-gray-50">⬇ Exportar CSV</a>
                 @if ($puede)
-                    <button type="button" wire:click="abrirPresupuesto" class="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-gray-50">Editar presupuesto</button>
-                    <button type="button" wire:click="abrirGasto" class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">➕ Registrar gasto</button>
+                    <button type="button" x-data x-on:click="Livewire.dispatch('presupuesto-editar')" class="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-gray-50">Editar presupuesto</button>
+                    <button type="button" x-data x-on:click="Livewire.dispatch('presupuesto-gasto')" class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">➕ Registrar gasto</button>
                 @endif
             </div>
         @endif
