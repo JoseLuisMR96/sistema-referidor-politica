@@ -16,7 +16,7 @@
             </div>
         </div>
         @if ($puede)
-            <button type="button" wire:click="abrir"
+            <button type="button" x-data x-on:click="Livewire.dispatch('ideologia-abrir')"
                 class="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
                 ➕ Clasificar partido
             </button>

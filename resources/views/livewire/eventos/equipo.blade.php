@@ -13,7 +13,7 @@
         <div class="flex items-center gap-2">
             <a href="{{ route('eventos.index') }}" class="text-sm font-semibold text-indigo-700 hover:underline">Eventos</a>
             @if ($tenant && $puede)
-                <button type="button" wire:click="abrir"
+                <button type="button" x-data x-on:click="Livewire.dispatch('equipo-abrir')"
                     class="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
                     ➕ Agregar persona
                 </button>

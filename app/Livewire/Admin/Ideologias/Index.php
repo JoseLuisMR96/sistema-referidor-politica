@@ -9,6 +9,7 @@ use App\Services\Historico\AnalisisElectoral;
 use App\Services\Historico\HistoricoElectoralStats;
 use App\Support\TenantContext;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
@@ -85,6 +86,9 @@ class Index extends Component
     }
 
     /** Abre el modal; sin clave, para elegir el partido en el modal. */
+    // El botón del encabezado queda fuera del componente (lo dibuja el layout),
+    // así que no puede usar wire:click: dispara este evento con Livewire.dispatch().
+    #[On('ideologia-abrir')]
     public function abrir(string $clave = ''): void
     {
         abort_unless($this->puedeClasificar(), 403);

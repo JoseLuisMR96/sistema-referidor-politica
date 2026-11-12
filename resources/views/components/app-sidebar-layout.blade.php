@@ -145,7 +145,7 @@
                     @endcan
                 @endcanany
 
-                @canany(['registros.ver_todos', 'importados.ver'])
+                @canany(['registros.ver_todos', 'referidores.ver', 'importados.ver'])
                     <div class="{{ $tituloSeccion }}">Votantes</div>
 
                     @can('registros.ver_todos')
@@ -154,19 +154,18 @@
                         </x-sidebar-link>
                     @endcan
 
+                    {{-- Los referidores traen los registros (sus links llenan esa tabla) --}}
+                    @can('referidores.ver')
+                        <x-sidebar-link route="referrers.index" pattern="referrers.*" icon="user-add">
+                            Referidores
+                        </x-sidebar-link>
+                    @endcan
+
                     @can('importados.ver')
                         <x-sidebar-link route="imported-people.index" pattern="imported-people.*" icon="arrow-down-tray">
                             Importados
                         </x-sidebar-link>
                     @endcan
-                @endcanany
-
-                @can('referidores.ver')
-                    <div class="{{ $tituloSeccion }}">Equipo de campo</div>
-
-                    <x-sidebar-link route="referrers.index" pattern="referrers.*" icon="user-add">
-                        Referidores
-                    </x-sidebar-link>
 
                     {{-- Oculto del menú (la ruta /admin/referidores-pregoneros sigue funcionando)
                     @can('pregoneros_referidores.ver')
@@ -175,7 +174,7 @@
                         </x-sidebar-link>
                     @endcan
                     --}}
-                @endcan
+                @endcanany
 
                 @canany(['eventos.ver', 'equipo.gestionar', 'presupuesto.ver', 'diae.ver'])
                     <div class="{{ $tituloSeccion }}">Territorio</div>
