@@ -4,6 +4,7 @@ namespace App\Services\Redes;
 
 use App\Models\RedCuenta;
 use App\Models\RedMetrica;
+use App\Models\RedPublicacion;
 use App\Models\RedTono;
 use App\Models\Tenant;
 use App\Support\TenantContext;
@@ -171,6 +172,189 @@ class RedesStats
             ->sortByDesc('seguidores')
             ->values()
             ->all();
+    }
+
+    /** Franjas del día (hora de Colombia) => [desde, hasta) */
+    public const FRANJAS = [
+        'madrugada' => ['Madrugada (0–6 h)', 0, 6],
+        'manana' => ['Mañana (6–12 h)', 6, 12],
+        'tarde' => ['Tarde (12–18 h)', 12, 18],
+        'noche' => ['Noche (18–24 h)', 18, 24],
+    ];
+
+    public const DIAS = [1 => 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+    /**
+     * Qué contenido funciona en Instagram, del candidato y de sus rivales, en
+     * los últimos $dias: ritmo de publicación, rendimiento por tipo, día,
+     * franja y tema, y las mejores publicaciones de la semana.
+     *
+     * El rendimiento es el engagement: interacciones (me gusta + comentarios)
+     * por cada 100 seguidores de la cuenta, para comparar cuentas de distinto
+     * tamaño. Las agrupaciones separan "candidato" de "rivales".
+     *
+     * @return array<string, mixed>
+     */
+    public function contenido(int $dias = 30): array
+    {
+        $cuentas = RedCuenta::query()
+            ->where('activo', true)
+            ->where('red', RedCuenta::INSTAGRAM)
+            ->get()
+            ->keyBy('id');
+
+        $publicaciones = $cuentas->isEmpty() ? collect() : RedPublicacion::query()
+            ->whereIn('red_cuenta_id', $cuentas->keys())
+            ->where('publicada_at', '>=', Carbon::now()->subDays($dias))
+            ->orderByDesc('publicada_at')
+            ->get();
+
+        if ($publicaciones->isEmpty()) {
+            return ['hay' => false, 'dias' => $dias];
+        }
+
+        // Seguidores actuales de cada cuenta (última foto con dato)
+        $seguidores = RedMetrica::query()
+            ->whereIn('red_cuenta_id', $cuentas->keys())
+            ->whereNotNull('seguidores')
+            ->whereDate('fecha', '>=', Carbon::today()->subDays(30))
+            ->orderBy('fecha')
+            ->get(['red_cuenta_id', 'seguidores'])
+            ->groupBy('red_cuenta_id')
+            ->map(fn ($g) => (int) $g->last()->seguidores);
+
+        $vacio = fn () => ['n' => 0, 'eng' => 0.0, 'con_eng' => 0, 'interacciones' => 0];
+        $sumar = function (array &$acc, ?float $eng, int $interacciones) {
+            $acc['n']++;
+            $acc['interacciones'] += $interacciones;
+            if ($eng !== null) {
+                $acc['eng'] += $eng;
+                $acc['con_eng']++;
+            }
+        };
+        $cerrar = fn (array $acc) => [
+            'n' => $acc['n'],
+            'engagement' => $acc['con_eng'] ? round($acc['eng'] / $acc['con_eng'], 2) : null,
+            'interacciones' => $acc['n'] ? (int) round($acc['interacciones'] / $acc['n']) : 0,
+        ];
+
+        $porCuenta = [];
+        $grupos = ['tipo' => [], 'dia' => [], 'franja' => [], 'tema' => []];
+        $filasTop = [];
+
+        foreach ($publicaciones as $p) {
+            $cuenta = $cuentas[$p->red_cuenta_id];
+            $grupo = $cuenta->esRival() ? 'rivales' : 'candidato';
+            $seg = $seguidores[$p->red_cuenta_id] ?? null;
+            $interacciones = $p->interacciones();
+            $eng = $seg ? $interacciones * 100 / $seg : null;
+            $fecha = $p->publicada_at?->copy()->timezone('America/Bogota');
+
+            $porCuenta[$p->red_cuenta_id] ??= $vacio() + ['repro' => 0, 'con_repro' => 0];
+            $sumar($porCuenta[$p->red_cuenta_id], $eng, $interacciones);
+            if ($p->reproducciones !== null) {
+                $porCuenta[$p->red_cuenta_id]['repro'] += $p->reproducciones;
+                $porCuenta[$p->red_cuenta_id]['con_repro']++;
+            }
+
+            $claves = [
+                'tipo' => $p->tipo ?: 'otro',
+                'tema' => $p->tema ?: ($p->texto ? 'sin_clasificar' : 'sin_texto'),
+            ];
+            if ($fecha) {
+                $claves['dia'] = $fecha->dayOfWeekIso;
+                $claves['franja'] = collect(self::FRANJAS)->search(fn ($f) => $fecha->hour >= $f[1] && $fecha->hour < $f[2]);
+            }
+            foreach ($claves as $dim => $clave) {
+                $grupos[$dim][$clave][$grupo] ??= $vacio();
+                $sumar($grupos[$dim][$clave][$grupo], $eng, $interacciones);
+            }
+
+            if ($fecha && $p->publicada_at->gte(Carbon::now()->subDays(7))) {
+                $filasTop[] = [
+                    'cuenta' => $cuenta->nombreVisible(),
+                    'usuario' => $cuenta->usuario,
+                    'es_rival' => $cuenta->esRival(),
+                    'tipo' => RedPublicacion::TIPOS[$p->tipo] ?? $p->tipo,
+                    'tema' => RedPublicacion::TEMAS[$p->tema] ?? null,
+                    'texto' => $p->texto ? mb_strimwidth($p->texto, 0, 160, '…') : null,
+                    'enlace' => $p->enlace,
+                    'fecha' => $fecha->toIso8601String(),
+                    'me_gusta' => $p->me_gusta,
+                    'comentarios' => $p->comentarios,
+                    'reproducciones' => $p->reproducciones,
+                    'engagement' => $eng !== null ? round($eng, 2) : null,
+                    'interacciones' => $interacciones,
+                ];
+            }
+        }
+
+        // Cada dimensión: clave => ['candidato' => fila, 'rivales' => fila]
+        $tabla = function (array $dim, array $orden = []) use ($cerrar) {
+            $salida = [];
+            foreach ($dim as $clave => $porGrupo) {
+                $salida[$clave] = array_map($cerrar, $porGrupo);
+            }
+            if ($orden) {
+                uksort($salida, fn ($a, $b) => array_search($a, $orden) <=> array_search($b, $orden));
+            } else {
+                uasort($salida, fn ($a, $b) => (($b['candidato']['n'] ?? 0) + ($b['rivales']['n'] ?? 0))
+                    <=> (($a['candidato']['n'] ?? 0) + ($a['rivales']['n'] ?? 0)));
+            }
+
+            return $salida;
+        };
+
+        $porTipo = $tabla($grupos['tipo']);
+        $porDia = $tabla($grupos['dia'], array_keys(self::DIAS));
+        $porFranja = $tabla($grupos['franja'], array_keys(self::FRANJAS));
+        $porTema = $tabla($grupos['tema']);
+
+        // Lo mejor del candidato: necesita al menos 2 publicaciones para no
+        // sacar conclusiones de una sola
+        $mejor = function (array $dim) {
+            $candidatas = array_filter($dim, fn ($g) => ($g['candidato']['n'] ?? 0) >= 2 && ($g['candidato']['engagement'] ?? null) !== null);
+            if (! $candidatas) {
+                return null;
+            }
+            uasort($candidatas, fn ($a, $b) => $b['candidato']['engagement'] <=> $a['candidato']['engagement']);
+
+            return array_key_first($candidatas);
+        };
+
+        usort($filasTop, fn ($a, $b) => ($b['engagement'] ?? -1) <=> ($a['engagement'] ?? -1) ?: $b['interacciones'] <=> $a['interacciones']);
+
+        $semanas = $dias / 7;
+
+        return [
+            'hay' => true,
+            'dias' => $dias,
+            'hay_rivales' => $cuentas->contains(fn (RedCuenta $c) => $c->esRival()),
+            'cuentas' => collect($porCuenta)->map(function ($acc, $id) use ($cuentas, $cerrar, $semanas, $seguidores) {
+                $c = $cuentas[$id];
+
+                return $cerrar($acc) + [
+                    'cuenta' => $c->nombreVisible(),
+                    'usuario' => $c->usuario,
+                    'es_rival' => $c->esRival(),
+                    'seguidores' => $seguidores[$id] ?? null,
+                    'por_semana' => round($acc['n'] / $semanas, 1),
+                    'reproducciones' => $acc['con_repro'] ? (int) round($acc['repro'] / $acc['con_repro']) : null,
+                ];
+            })->sortBy([['es_rival', 'asc'], ['engagement', 'desc']])->values()->all(),
+            'por_tipo' => $porTipo,
+            'por_dia' => $porDia,
+            'por_franja' => $porFranja,
+            'por_tema' => $porTema,
+            'mejor' => [
+                'tipo' => $mejor($porTipo),
+                'dia' => $mejor($porDia),
+                'franja' => $mejor($porFranja),
+                'tema' => $mejor(array_diff_key($porTema, ['sin_clasificar' => 1, 'sin_texto' => 1])),
+            ],
+            'sin_clasificar' => (int) $publicaciones->whereNull('tema')->whereNotNull('texto')->count(),
+            'top' => array_slice($filasTop, 0, 6),
+        ];
     }
 
     /** @return array<string, mixed> */

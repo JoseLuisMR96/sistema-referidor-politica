@@ -4,6 +4,7 @@ namespace App\Services\Redes;
 
 use App\Models\RedCuenta;
 use App\Models\RedMetrica;
+use App\Models\RedPublicacion;
 use Illuminate\Support\Carbon;
 
 /**
@@ -20,7 +21,12 @@ use Illuminate\Support\Carbon;
  */
 class RedesSincronizador
 {
-    private const CAMPOS_MEDIA = 'media.limit(50){like_count,comments_count,timestamp}';
+    // Publicaciones: conteos para las interacciones y texto, tipo y enlace
+    // para ver qué contenido funciona (redes_publicaciones)
+    private const CAMPOS_MEDIA = 'media.limit(50){id,caption,media_type,permalink,like_count,comments_count,timestamp}';
+
+    // view_count (reproducciones de reels) solo existe en Business Discovery
+    private const CAMPOS_MEDIA_AJENA = 'media.limit(50){id,caption,media_type,permalink,like_count,comments_count,timestamp,view_count}';
 
     public function __construct(private MetaGraphClient $meta) {}
 
@@ -38,6 +44,9 @@ class RedesSincronizador
             throw $e;
         }
 
+        $media = $resumen['media'] ?? [];
+        unset($resumen['media']);
+
         $hoy = Carbon::today();
 
         // whereDate y no where('fecha', …): sqlite guarda la fecha con hora
@@ -53,6 +62,8 @@ class RedesSincronizador
         // Sin usuario (comando/cola) no hay tenant en contexto: va explícito
         $metrica->tenant_id = $cuenta->tenant_id;
         $metrica->fill($resumen)->save();
+
+        $this->guardarPublicaciones($cuenta, $media);
 
         $cuenta->update([
             'ultimo_sync_at' => now(),
@@ -71,7 +82,7 @@ class RedesSincronizador
                 'fields' => 'id,username,followers_count,media_count,'.self::CAMPOS_MEDIA,
             ], $cuenta->access_token);
 
-            return $this->resumir($datos, 'propio');
+            return $this->resumir($datos, 'propio') + ['media' => $datos['media']['data'] ?? []];
         }
 
         $igPropio = $this->meta->integracion()->credencial('ig_user_id');
@@ -85,14 +96,15 @@ class RedesSincronizador
         $usuario = ltrim($cuenta->usuario, '@');
 
         $respuesta = $this->meta->get($igPropio, [
-            'fields' => "business_discovery.username({$usuario}){id,username,followers_count,media_count,".self::CAMPOS_MEDIA.'}',
+            'fields' => "business_discovery.username({$usuario}){id,username,followers_count,media_count,".self::CAMPOS_MEDIA_AJENA.'}',
         ]);
 
         if (empty($respuesta['business_discovery'])) {
             throw new \RuntimeException("Instagram no devolvió datos de @{$usuario}. ¿Es una cuenta profesional (empresa o creador)?");
         }
 
-        return $this->resumir($respuesta['business_discovery'], 'business_discovery');
+        return $this->resumir($respuesta['business_discovery'], 'business_discovery')
+            + ['media' => $respuesta['business_discovery']['media']['data'] ?? []];
     }
 
     /** @return array{seguidores: ?int, publicaciones: ?int, interacciones_7d: ?int, datos: array} */
@@ -125,6 +137,41 @@ class RedesSincronizador
                 'fuente' => 'propio',
             ],
         ];
+    }
+
+    /**
+     * Guarda o actualiza las publicaciones recientes (los conteos cambian de
+     * un día a otro). El tema ya clasificado se conserva.
+     */
+    private function guardarPublicaciones(RedCuenta $cuenta, array $media): void
+    {
+        foreach ($media as $m) {
+            if (empty($m['id'])) {
+                continue;
+            }
+
+            $p = RedPublicacion::query()
+                ->withoutGlobalScope('tenant')
+                ->firstOrNew(['red_cuenta_id' => $cuenta->id, 'media_id' => (string) $m['id']]);
+
+            // Sin usuario (comando/cola) no hay tenant en contexto: va explícito
+            $p->tenant_id = $cuenta->tenant_id;
+            $texto = trim((string) ($m['caption'] ?? ''));
+            $p->fill([
+                'tipo' => $m['media_type'] ?? null,
+                'publicada_at' => isset($m['timestamp']) ? Carbon::parse($m['timestamp']) : null,
+                'texto' => $texto !== '' ? mb_substr($texto, 0, 5000) : null,
+                'enlace' => isset($m['permalink']) ? mb_substr($m['permalink'], 0, 500) : null,
+                'me_gusta' => isset($m['like_count']) ? (int) $m['like_count'] : null,
+                'comentarios' => isset($m['comments_count']) ? (int) $m['comments_count'] : null,
+                'reproducciones' => isset($m['view_count']) ? (int) $m['view_count'] : $p->reproducciones,
+            ]);
+            // Si cambió el texto, el tema se vuelve a clasificar
+            if ($p->isDirty('texto')) {
+                $p->tema = null;
+            }
+            $p->save();
+        }
     }
 
     /** @return array{seguidores: ?int, publicaciones: ?int, interacciones_7d: ?int, datos: array} */

@@ -31,6 +31,9 @@ class Redes extends Component
     // Tono de los comentarios (solo con token del candidato)
     public array $tono = [];
 
+    // Qué contenido funciona en Instagram (candidato y rivales)
+    public array $contenido = [];
+
     // ¿Alguna cuenta del candidato tiene su token? Sin eso no hay comentarios
     public bool $hayTokenCandidato = false;
 
@@ -57,6 +60,7 @@ class Redes extends Component
         $this->totales = $stats->totales($this->cuentas);
         $this->rivales = $stats->rivales();
         $this->tono = $stats->tono();
+        $this->contenido = $stats->contenido();
         $this->hayTokenCandidato = RedCuenta::query()
             ->where('tipo', RedCuenta::TIPO_PROPIA)
             ->whereNotNull('access_token')
