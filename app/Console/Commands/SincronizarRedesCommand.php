@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\RedCuenta;
 use App\Models\Tenant;
 use App\Services\Redes\RedesSincronizador;
+use App\Services\Redes\Temas\TemasPublicaciones;
 use App\Services\Redes\Tono\AnalizadorComentarios;
 use Illuminate\Console\Command;
 
@@ -19,7 +20,7 @@ class SincronizarRedesCommand extends Command
 
     protected $description = 'Trae de Meta seguidores, publicaciones e interacciones de las cuentas de los candidatos';
 
-    public function handle(RedesSincronizador $sincronizador, AnalizadorComentarios $analizador): int
+    public function handle(RedesSincronizador $sincronizador, AnalizadorComentarios $analizador, TemasPublicaciones $temas): int
     {
         $tenantId = null;
 
@@ -53,18 +54,35 @@ class SincronizarRedesCommand extends Command
         foreach ($cuentas as $cuenta) {
             try {
                 $m = $sincronizador->sincronizar($cuenta);
-                $filas[] = [$cuenta->tenant->nombre, $cuenta->red, $cuenta->usuario, $m->seguidores ?? '—', 'OK', $this->comentarios($analizador, $cuenta)];
+                $filas[] = [$cuenta->tenant->nombre, $cuenta->red, $cuenta->usuario, $m->seguidores ?? '—', 'OK', $this->comentarios($analizador, $cuenta), $this->temas($temas, $cuenta)];
             } catch (\Throwable $e) {
                 $errores++;
-                $filas[] = [$cuenta->tenant->nombre, $cuenta->red, $cuenta->usuario, '—', mb_strimwidth($e->getMessage(), 0, 80, '…'), '—'];
+                $filas[] = [$cuenta->tenant->nombre, $cuenta->red, $cuenta->usuario, '—', mb_strimwidth($e->getMessage(), 0, 80, '…'), '—', '—'];
             }
         }
 
-        $this->table(['Candidato', 'Red', 'Cuenta', 'Seguidores', 'Resultado', 'Comentarios'], $filas);
+        $this->table(['Candidato', 'Red', 'Cuenta', 'Seguidores', 'Resultado', 'Comentarios', 'Temas'], $filas);
 
         // Que falle una cuenta no es un fallo del comando (las demás siguen),
         // pero si fallan todas sí: probablemente es la configuración de Meta.
         return $errores === count($filas) ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * Tema de las publicaciones nuevas (Instagram, candidato y rivales). Un
+     * fallo de la IA no tumba la sincronización.
+     */
+    private function temas(TemasPublicaciones $temas, RedCuenta $cuenta): string
+    {
+        if ($cuenta->red !== RedCuenta::INSTAGRAM || ! $temas->puedeClasificar()) {
+            return '—';
+        }
+
+        try {
+            return $temas->clasificar($cuenta).' clasificadas';
+        } catch (\Throwable $e) {
+            return 'Error: '.mb_strimwidth($e->getMessage(), 0, 60, '…');
+        }
     }
 
     /**

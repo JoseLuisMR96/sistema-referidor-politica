@@ -274,6 +274,195 @@
             @endif
         </div>
 
+        {{-- ===== Qué contenido funciona (Instagram) ===== --}}
+        @php
+            $co = $contenido;
+            $etiquetas = [
+                'por_tipo' => \App\Models\RedPublicacion::TIPOS + ['otro' => 'Otro'],
+                'por_dia' => \App\Services\Redes\RedesStats::DIAS,
+                'por_franja' => array_map(fn ($f) => $f[0], \App\Services\Redes\RedesStats::FRANJAS),
+                'por_tema' => \App\Models\RedPublicacion::TEMAS + ['sin_clasificar' => 'Sin clasificar aún', 'sin_texto' => 'Sin texto'],
+            ];
+            $titulos = ['por_tipo' => 'Por formato', 'por_dia' => 'Por día', 'por_franja' => 'Por hora (Colombia)', 'por_tema' => 'Por tema'];
+            $clavesMejor = ['por_tipo' => 'tipo', 'por_dia' => 'dia', 'por_franja' => 'franja', 'por_tema' => 'tema'];
+            $fmtEng = fn ($v) => $v === null ? '—' : number_format($v, 2, ',', '.');
+        @endphp
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+            <div>
+                <div class="text-lg font-extrabold text-slate-900">Qué contenido funciona en Instagram</div>
+                <div class="text-xs text-slate-500">
+                    Publicaciones de los últimos {{ $co['dias'] ?? 30 }} días{{ ($co['hay_rivales'] ?? false) ? ', del candidato y de sus rivales' : '' }}.
+                    <strong>Rendimiento</strong> = interacciones (me gusta + comentarios) por cada 100 seguidores: así se comparan cuentas de distinto tamaño.
+                </div>
+            </div>
+
+            @if (! ($co['hay'] ?? false))
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    Todavía no hay publicaciones guardadas. Se llenan con la sincronización diaria de las 6:00
+                    (necesita una cuenta de Instagram registrada en Cuentas de redes).
+                </div>
+            @else
+                {{-- Lo que mejor le funciona al candidato --}}
+                @php
+                    $mejores = array_filter([
+                        'Formato' => $co['mejor']['tipo'] ? ($etiquetas['por_tipo'][$co['mejor']['tipo']] ?? null) : null,
+                        'Día' => $co['mejor']['dia'] ? ($etiquetas['por_dia'][$co['mejor']['dia']] ?? null) : null,
+                        'Hora' => $co['mejor']['franja'] ? ($etiquetas['por_franja'][$co['mejor']['franja']] ?? null) : null,
+                        'Tema' => $co['mejor']['tema'] ? ($etiquetas['por_tema'][$co['mejor']['tema']] ?? null) : null,
+                    ]);
+                @endphp
+                @if ($mejores)
+                    <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                        <div class="text-sm font-semibold text-indigo-900 mb-2">Lo que mejor le funciona al candidato</div>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach ($mejores as $que => $valor)
+                                <span class="rounded-full bg-white border border-indigo-200 px-3 py-1 text-sm">
+                                    <span class="text-slate-500">{{ $que }}:</span> <strong class="text-slate-900">{{ $valor }}</strong>
+                                </span>
+                            @endforeach
+                        </div>
+                        <div class="text-xs text-indigo-800 mt-2">Con al menos 2 publicaciones en cada caso. Es una pista, no una regla: pocas publicaciones pueden engañar.</div>
+                    </div>
+                @endif
+
+                {{-- Ritmo y rendimiento por cuenta --}}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="text-left text-xs uppercase tracking-wider text-slate-400">
+                            <tr>
+                                <th class="py-2 pr-4">Cuenta</th>
+                                <th class="py-2 px-3 text-right">Seguidores</th>
+                                <th class="py-2 px-3 text-right">Publica por semana</th>
+                                <th class="py-2 px-3 text-right">Rendimiento</th>
+                                <th class="py-2 px-3 text-right">Interacciones por publicación</th>
+                                <th class="py-2 px-3 text-right">Reproducciones por reel</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            @foreach ($co['cuentas'] as $r)
+                                <tr class="{{ $r['es_rival'] ? 'bg-slate-50' : '' }}">
+                                    <td class="py-2 pr-4 font-semibold text-slate-900">
+                                        {{ $r['cuenta'] }}
+                                        @if ($r['es_rival'])
+                                            <span class="text-xs font-normal text-slate-500">{{ '@'.ltrim($r['usuario'], '@') }}</span>
+                                            <span class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Rival</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-2 px-3 text-right tabular-nums">{{ $r['seguidores'] !== null ? number_format($r['seguidores']) : '—' }}</td>
+                                    <td class="py-2 px-3 text-right tabular-nums">{{ number_format($r['por_semana'], 1, ',', '.') }}</td>
+                                    <td class="py-2 px-3 text-right tabular-nums font-bold">{{ $fmtEng($r['engagement']) }}</td>
+                                    <td class="py-2 px-3 text-right tabular-nums">{{ number_format($r['interacciones']) }}</td>
+                                    <td class="py-2 px-3 text-right tabular-nums">{{ $r['reproducciones'] !== null ? number_format($r['reproducciones']) : '—' }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                {{-- Formato, día, hora y tema --}}
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    @foreach ($titulos as $dim => $titulo)
+                        @php
+                            $filasDim = $co[$dim];
+                            $maxEng = max(0.01, ...array_values(array_map(fn ($g) => max($g['candidato']['engagement'] ?? 0, $g['rivales']['engagement'] ?? 0), $filasDim ?: [[]])));
+                        @endphp
+                        <div class="rounded-xl border border-slate-200 p-4">
+                            <div class="text-sm font-semibold text-slate-700 mb-2">{{ $titulo }}</div>
+                            <table class="min-w-full text-sm">
+                                <thead class="text-left text-[11px] uppercase tracking-wider text-slate-400">
+                                    <tr>
+                                        <th class="py-1 pr-2"></th>
+                                        <th class="py-1 px-2">Candidato</th>
+                                        @if ($co['hay_rivales'])
+                                            <th class="py-1 px-2">Rivales</th>
+                                        @endif
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y">
+                                    @foreach ($filasDim as $clave => $g)
+                                        <tr class="{{ $co['mejor'][$clavesMejor[$dim]] === $clave ? 'font-semibold' : '' }}">
+                                            <td class="py-1.5 pr-2 whitespace-nowrap">{{ $etiquetas[$dim][$clave] ?? $clave }}</td>
+                                            @foreach ($co['hay_rivales'] ? ['candidato', 'rivales'] : ['candidato'] as $quien)
+                                                @php
+                                                    $x = $g[$quien] ?? null;
+                                                @endphp
+                                                <td class="py-1.5 px-2 w-2/5">
+                                                    @if ($x)
+                                                        <div class="flex items-center gap-2">
+                                                            <div class="h-2 flex-1 rounded-full bg-slate-100">
+                                                                <div class="h-2 rounded-full {{ $quien === 'candidato' ? 'bg-indigo-500' : 'bg-amber-400' }}"
+                                                                    style="width: {{ round(($x['engagement'] ?? 0) * 100 / $maxEng) }}%"></div>
+                                                            </div>
+                                                            <span class="tabular-nums text-xs w-10 text-right">{{ $fmtEng($x['engagement']) }}</span>
+                                                        </div>
+                                                        <div class="text-[11px] text-slate-400">{{ $x['n'] }} {{ $x['n'] === 1 ? 'publicación' : 'publicaciones' }}</div>
+                                                    @else
+                                                        <span class="text-xs text-slate-300">—</span>
+                                                    @endif
+                                                </td>
+                                            @endforeach
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endforeach
+                </div>
+                @if ($co['sin_clasificar'])
+                    <div class="text-xs text-slate-500">
+                        {{ number_format($co['sin_clasificar']) }} publicaciones aún sin tema: la IA las clasifica en la sincronización diaria
+                        (hace falta la API key de Anthropic en Integraciones).
+                    </div>
+                @endif
+
+                {{-- Mejores publicaciones de la semana --}}
+                <div>
+                    <div class="text-sm font-semibold text-slate-700 mb-2">Mejores publicaciones de los últimos 7 días</div>
+                    @if (empty($co['top']))
+                        <div class="text-sm text-slate-500">Nadie publicó en los últimos 7 días.</div>
+                    @else
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                            @foreach ($co['top'] as $t)
+                                <div class="rounded-xl border p-4 space-y-2 {{ $t['es_rival'] ? 'border-amber-200 bg-amber-50/40' : 'border-slate-200' }}">
+                                    <div class="flex items-center justify-between gap-2 text-xs">
+                                        <span class="font-semibold text-slate-900">
+                                            {{ $t['cuenta'] }}
+                                            @if ($t['es_rival'])
+                                                <span class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Rival</span>
+                                            @endif
+                                        </span>
+                                        <span class="text-slate-500">{{ \Illuminate\Support\Carbon::parse($t['fecha'])->locale('es')->isoFormat('ddd D MMM, h:mm a') }}</span>
+                                    </div>
+                                    <div class="flex flex-wrap gap-1 text-[11px]">
+                                        @if ($t['tipo'])
+                                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">{{ $t['tipo'] }}</span>
+                                        @endif
+                                        @if ($t['tema'])
+                                            <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700">{{ $t['tema'] }}</span>
+                                        @endif
+                                    </div>
+                                    @if ($t['texto'])
+                                        <div class="text-sm text-slate-700">{{ $t['texto'] }}</div>
+                                    @endif
+                                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 tabular-nums">
+                                        <span title="Rendimiento: interacciones por cada 100 seguidores"><strong class="text-slate-900">{{ $fmtEng($t['engagement']) }}</strong> rend.</span>
+                                        <span>❤ {{ $t['me_gusta'] !== null ? number_format($t['me_gusta']) : 'oculto' }}</span>
+                                        <span>💬 {{ number_format((int) $t['comentarios']) }}</span>
+                                        @if ($t['reproducciones'] !== null)
+                                            <span>▶ {{ number_format($t['reproducciones']) }}</span>
+                                        @endif
+                                        @if ($t['enlace'])
+                                            <a href="{{ $t['enlace'] }}" target="_blank" rel="noopener" class="ml-auto font-semibold text-indigo-700 hover:underline">Ver en Instagram</a>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            @endif
+        </div>
+
         {{-- ===== Tono de los comentarios ===== --}}
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
             <div>

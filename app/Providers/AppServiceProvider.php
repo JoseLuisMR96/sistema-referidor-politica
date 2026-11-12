@@ -19,6 +19,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Clasificación del tono de comentarios (los tests enlazan uno falso)
         $this->app->bind(ClasificadorTono::class, ClaudeClasificadorTono::class);
+
+        // Temas de las publicaciones (los tests enlazan uno falso)
+        $this->app->bind(\App\Services\Redes\Temas\ClasificadorTemas::class, \App\Services\Redes\Temas\ClaudeClasificadorTemas::class);
     }
 
     /**

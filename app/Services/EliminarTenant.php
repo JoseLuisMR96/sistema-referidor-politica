@@ -39,6 +39,7 @@ class EliminarTenant
         'imported_people' => 'Importados (padrón)',
         'referrers' => 'Referidores',
         'redes_tono' => 'Tono de comentarios',
+        'redes_publicaciones' => 'Publicaciones de redes',
         'redes_metricas' => 'Métricas de redes',
         'redes_cuentas' => 'Cuentas de redes',
         // eleccion_opciones cae por CASCADE con las elecciones
