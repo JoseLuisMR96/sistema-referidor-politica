@@ -118,9 +118,29 @@
         </div>
 
         {{-- ===== Gráfica de crecimiento semanal ===== --}}
+        {{-- Rivales (solo Instagram): se suman a la gráfica y a la tabla si hay alguno --}}
+        @php
+            $soloRivales = collect($rivales)->where('es_rival', true)->values()->all();
+        @endphp
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <div class="text-lg font-extrabold text-slate-900">Seguidores por semana</div>
-            <div class="text-xs text-slate-500 mb-4">Valor al cierre de cada semana (lunes a domingo).</div>
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                <div>
+                    <div class="text-lg font-extrabold text-slate-900">Seguidores por semana</div>
+                    <div class="text-xs text-slate-500">
+                        Valor al cierre de cada semana (lunes a domingo).
+                        @if ($soloRivales)
+                            Las líneas punteadas son los rivales (solo Instagram). Toca un nombre en la leyenda para ocultarlo.
+                        @endif
+                    </div>
+                </div>
+                @if ($soloRivales)
+                    <div class="inline-flex rounded-xl border border-slate-200 p-0.5 text-xs font-semibold" wire:ignore>
+                        <button type="button" data-modo="seguidores" class="modo-redes rounded-lg px-3 py-1.5 bg-indigo-600 text-white">Seguidores</button>
+                        <button type="button" data-modo="crecimiento" class="modo-redes rounded-lg px-3 py-1.5 text-slate-600"
+                            title="Cambio desde la primera semana con datos: compara cuentas de distinto tamaño">Crecimiento %</button>
+                    </div>
+                @endif
+            </div>
             <div class="h-72" wire:ignore>
                 <canvas id="graficaRedes"></canvas>
             </div>
@@ -143,8 +163,8 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y">
-                        @foreach ($cuentas as $r)
-                            <tr>
+                        @foreach ([...$cuentas, ...$soloRivales] as $r)
+                            <tr class="{{ $r['es_rival'] ? 'bg-slate-50' : '' }}">
                                 <td class="py-2 pr-4">
                                     <div class="font-semibold text-slate-900">
                                         {{ ucfirst($r['red']) }} ·
@@ -152,6 +172,9 @@
                                             <a href="{{ $r['url'] }}" target="_blank" rel="noopener" class="underline">{{ $r['usuario'] }}</a>
                                         @else
                                             {{ $r['usuario'] }}
+                                        @endif
+                                        @if ($r['es_rival'])
+                                            <span class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Rival</span>
                                         @endif
                                     </div>
                                     <div class="text-xs text-slate-500">
@@ -336,6 +359,8 @@
         <script>
             (function () {
                 const cuentas = @json($cuentas);
+                // Rivales: solo si hay alguno registrado; si no, la gráfica queda solo con el candidato
+                const rivales = {{ Js::from(collect($rivales)->where('es_rival', true)->values()) }};
                 const el = document.getElementById('graficaRedes');
                 if (!el || typeof Chart === 'undefined' || !cuentas.length) return;
 
@@ -344,18 +369,34 @@
                     return `${d}/${m}`;
                 });
 
-                // Colores fijos por red, con variación si hay varias de la misma
+                // Colores fijos por red para el candidato; los rivales van punteados
                 const colores = { facebook: '#1877F2', instagram: '#C13584' };
+                const coloresRival = ['#f59e0b', '#64748b', '#0d9488', '#7c3aed', '#dc2626', '#65a30d'];
 
-                new Chart(el, {
+                const series = [
+                    ...cuentas.map(c => ({ c, color: colores[c.red] || '#334155', rival: false })),
+                    ...rivales.map((c, i) => ({ c, color: coloresRival[i % coloresRival.length], rival: true })),
+                ];
+
+                // Crecimiento: % frente a la primera semana con datos de cada cuenta
+                const valores = (c, modo) => {
+                    const datos = c.semanas.map(s => s.seguidores);
+                    if (modo !== 'crecimiento') return datos;
+                    const base = datos.find(v => v !== null && v > 0);
+                    return datos.map(v => (v === null || !base) ? null : Math.round((v - base) / base * 1000) / 10);
+                };
+
+                const grafica = new Chart(el, {
                     type: 'line',
                     data: {
                         labels: etiquetas,
-                        datasets: cuentas.map(c => ({
-                            label: `${c.red} · ${c.usuario}`,
-                            data: c.semanas.map(s => s.seguidores),
-                            borderColor: colores[c.red] || '#334155',
-                            backgroundColor: colores[c.red] || '#334155',
+                        datasets: series.map(({ c, color, rival }) => ({
+                            label: rival ? `Rival · ${c.nombre || c.usuario}` : `${c.red} · ${c.usuario}`,
+                            data: valores(c, 'seguidores'),
+                            borderColor: color,
+                            backgroundColor: color,
+                            borderDash: rival ? [6, 4] : [],
+                            borderWidth: rival ? 2 : 3,
                             spanGaps: true,
                             tension: 0.25,
                         })),
@@ -366,6 +407,21 @@
                         scales: { y: { ticks: { callback: v => Number(v).toLocaleString('es-CO') } } },
                     },
                 });
+
+                document.querySelectorAll('.modo-redes').forEach(boton => boton.addEventListener('click', () => {
+                    const modo = boton.dataset.modo;
+                    grafica.data.datasets.forEach((d, i) => { d.data = valores(series[i].c, modo); });
+                    grafica.options.scales.y.ticks.callback = modo === 'crecimiento'
+                        ? v => `${v > 0 ? '+' : ''}${v} %`
+                        : v => Number(v).toLocaleString('es-CO');
+                    grafica.update();
+                    document.querySelectorAll('.modo-redes').forEach(b => {
+                        const activo = b === boton;
+                        b.classList.toggle('bg-indigo-600', activo);
+                        b.classList.toggle('text-white', activo);
+                        b.classList.toggle('text-slate-600', !activo);
+                    });
+                }));
             })();
         </script>
     @endpush

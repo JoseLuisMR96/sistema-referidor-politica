@@ -149,6 +149,135 @@
             </div>
         @endif
 
+        {{-- Card: Votos probables (registros descontados por participación y fidelidad) --}}
+        @if ($estimacion)
+            @php($e = $estimacion)
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5" wire:ignore
+                x-data="{
+                    f: { p: {{ $e['fidelidad']['pesimista'] }}, m: {{ $e['fidelidad']['media'] }}, o: {{ $e['fidelidad']['optimista'] }} },
+                    votantes: {{ $e['votantes'] }},
+                    part: {{ $e['participacion'] ?? 'null' }},
+                    meta: {{ $e['meta'] ?? 'null' }},
+                    n(v) { return Math.round(v).toLocaleString('es-CO') },
+                    votos(f) { return this.votantes * f / 100 },
+                    necesarios(f) { return this.meta && this.part && f ? this.meta / (this.part / 100 * f / 100) : null },
+                }">
+                <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+                    <div>
+                        <div class="text-xs uppercase tracking-wider text-slate-400">Votos probables de los registros</div>
+                        <div class="text-lg font-extrabold text-slate-900">
+                            Entre <span x-text="n(votos(f.p))"></span> y <span x-text="n(votos(f.o))"></span> votos
+                        </div>
+                        <div class="text-sm text-slate-500">
+                            De {{ number_format($e['contables']) }} registros que votan en la circunscripción.
+                            No todos votan ni todos cumplen: es un rango entre supuestos, no una cifra exacta.
+                        </div>
+                        @if ($e['sin_participacion'] && ! $e['contables'])
+                            <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                Falta el histórico de {{ $e['cargo'] }} en estos municipios: sin participación no se puede estimar.
+                                Se carga en Histórico electoral.
+                            </div>
+                        @endif
+                    </div>
+                    @if ($e['meta'])
+                        <div class="text-sm text-slate-600 sm:text-right">
+                            Meta de votos ({{ $e['cargo'] }})
+                            <div class="text-2xl font-extrabold text-slate-900 tabular-nums">{{ number_format($e['meta']) }}</div>
+                        </div>
+                    @endif
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    @foreach ([
+                        'p' => ['Pesimista', 'bg-rose-50 border-rose-100', 'text-rose-700', 'text-rose-900'],
+                        'm' => ['Media', 'bg-indigo-50 border-indigo-100', 'text-indigo-700', 'text-indigo-900'],
+                        'o' => ['Optimista', 'bg-emerald-50 border-emerald-100', 'text-emerald-700', 'text-emerald-900'],
+                    ] as $k => [$titulo, $caja, $etiqueta, $cifra])
+                        <div class="rounded-xl border p-4 space-y-2 {{ $caja }}">
+                            <div class="text-xs {{ $etiqueta }}">{{ $titulo }}</div>
+                            <div class="text-2xl font-extrabold tabular-nums {{ $cifra }}" x-text="n(votos(f.{{ $k }}))"></div>
+                            <label class="block text-xs text-slate-600">
+                                Fidelidad: <span class="font-semibold tabular-nums" x-text="f.{{ $k }} + ' %'"></span>
+                                <input type="range" min="5" max="100" step="5" x-model.number="f.{{ $k }}" class="w-full accent-indigo-600">
+                            </label>
+                            @if ($e['meta'])
+                                <div class="text-xs text-slate-600" x-show="necesarios(f.{{ $k }})">
+                                    Para la meta harían falta
+                                    <span class="font-semibold tabular-nums" x-text="n(necesarios(f.{{ $k }}))"></span> registros
+                                    (<span class="tabular-nums" x-text="Math.round(votos(f.{{ $k }}) * 100 / meta) + ' %'"></span> de la meta hoy).
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+
+                <details class="text-sm text-slate-600">
+                    <summary class="cursor-pointer font-semibold text-slate-700">Cómo se calcula</summary>
+                    <div class="mt-2 space-y-2">
+                        <p>
+                            <strong>Votos probables = registros × participación × fidelidad</strong>, municipio por municipio.
+                        </p>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li>
+                                <strong>Participación</strong>: de cada 100 registrados en un municipio, votan los mismos que votaron allí
+                                en la última elección de {{ $e['cargo'] }}{{ $e['anio'] ? " ({$e['anio']})" : '' }}, según el histórico (votos válidos sobre el potencial).
+                                @if ($e['participacion'] !== null)
+                                    En promedio, {{ $e['participacion'] }} %.
+                                @endif
+                                Si un municipio no tiene dato, se usa el promedio de su departamento.
+                            </li>
+                            <li>
+                                <strong>Fidelidad</strong>: de los que votan, cuántos votan por el candidato. Nadie la puede medir antes de
+                                la elección, por eso son tres escenarios que puedes mover. Después de la elección se puede calibrar con los
+                                resultados por municipio o con los E-14 del Día E.
+                            </li>
+                            <li>
+                                No cuentan: {{ number_format($e['fuera']) }} que votan fuera de la circunscripción,
+                                {{ number_format($e['sin_municipio']) }} sin municipio de votación
+                                @if ($e['importados'])
+                                    y {{ number_format($e['importados']) }} importados del padrón (no son compromisos de un referidor)
+                                @endif.
+                                @if ($e['sin_participacion'])
+                                    Tampoco {{ number_format($e['sin_participacion']) }} de municipios sin datos del histórico.
+                                @endif
+                            </li>
+                        </ul>
+
+                        @if (count($e['municipios']) > 1)
+                            <div class="max-h-72 overflow-y-auto rounded-xl border border-slate-200">
+                                <table class="min-w-full text-sm">
+                                    <thead class="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
+                                        <tr>
+                                            <th class="py-2 px-4">Municipio</th>
+                                            <th class="py-2 px-4 text-right">Registros</th>
+                                            <th class="py-2 px-4 text-right">Participación</th>
+                                            <th class="py-2 px-4 text-right">Votos (media)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y">
+                                        @foreach ($e['municipios'] as $m)
+                                            <tr>
+                                                <td class="py-2 px-4">{{ $m['municipio'] }}</td>
+                                                <td class="py-2 px-4 text-right tabular-nums">{{ number_format($m['registros']) }}</td>
+                                                <td class="py-2 px-4 text-right tabular-nums">
+                                                    {{ $m['participacion'] !== null ? $m['participacion'].' %' : '—' }}
+                                                    @if ($m['fuente'] === 'departamento')
+                                                        <span class="text-xs text-slate-400" title="Sin dato del municipio: promedio del departamento">*</span>
+                                                    @endif
+                                                </td>
+                                                <td class="py-2 px-4 text-right font-semibold tabular-nums"
+                                                    x-text="{{ $m['votantes'] ?? 'null' }} === null ? '—' : n({{ $m['votantes'] ?? 0 }} * f.m / 100)"></td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </details>
+            </div>
+        @endif
+
         {{-- Bloque: Top referidores + Municipios donde votan --}}
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
