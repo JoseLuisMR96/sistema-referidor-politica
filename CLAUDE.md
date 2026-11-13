@@ -248,6 +248,7 @@ Cada **tenant** es un candidato o campaña ("Camilo Cfer — Concejo municipal")
   - **Siglas (ASI, AICO, MAIS):** solo sirven para detectar coaliciones. Si no, "Así Ganamos Todos" caería en el ASI.
 - **Potencial electoral:** `municipios.potencial_electoral` (y mujeres, hombres, mesas, año) se carga con `php artisan municipios:potencial <DIVIPOL.TXT> --anio=2026` ([comando](app/Console/Commands/CargarPotencialElectoralCommand.php)). El DIVIPOL viene en los archivos básicos de la Registraduría.
   - **Ojo:** en el archivo de 2026 la primera columna de potencial es la de **mujeres**, aunque el PDF diga "hombres, mujeres". Así da 51 % de mujeres, como el censo real.
+  - **A producción:** el DIVIPOL no está en el servidor. Después de `municipios:potencial` en local, corre `municipios:exportar-potencial`, que escribe `database/data/potencial_municipios.csv` (~34 KB, por código DANE), y súbelo. El despliegue corre `municipios:cargar-potencial --si-cambio` (huella en `storage/app/potencial-cargado.json`) e invalida la caché del Histórico. Sin potencial no hay participación: quedan vacíos "Tamaño de los municipios", "Votos por conquistar" y los votos probables del dashboard de registros.
 
 ## Eventos de campaña (territorio)
 
