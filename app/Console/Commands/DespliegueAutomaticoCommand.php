@@ -64,6 +64,8 @@ class DespliegueAutomaticoCommand extends Command
             ['migrate', ['--force' => true]],
             // Puestos de votación del repo (database/data/puestos): solo los archivos que cambiaron
             ['historico:cargar-puestos', ['--si-cambiaron' => true]],
+            // Potencial electoral por municipio (database/data/potencial_municipios.csv): solo si cambió
+            ['municipios:cargar-potencial', ['--si-cambio' => true]],
             ['db:seed', ['--class' => 'RolesYPermisosSeeder', '--force' => true]],
             // No optimize:clear: también vacía la caché de la app (el precálculo del Histórico)
             ['config:clear', []],
