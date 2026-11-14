@@ -115,6 +115,11 @@ class Index extends Component
             ->selectRaw('responsable_id, COUNT(*) as eventos,
                 COALESCE(SUM(monto_asignado), 0) as asignado, COALESCE(SUM(monto_gastado), 0) as gastado')
             ->groupBy('responsable_id')->orderByDesc('asignado')->get();
+        // Dinero de eventos donde el candidato fue en persona sin responsable del equipo: queda a su nombre
+        $delCandidato = (clone $hechos)->toBase()->whereNull('responsable_id')->where('asistio_candidato', true)
+            ->where('monto_asignado', '>', 0)
+            ->selectRaw('COUNT(*) as eventos, COALESCE(SUM(monto_asignado), 0) as asignado, COALESCE(SUM(monto_gastado), 0) as gastado')
+            ->first();
         $equipo = IntegranteEquipo::orderBy('nombre')->get()->keyBy('id');
 
         $eventos = (clone $base)
@@ -134,6 +139,7 @@ class Index extends Component
             'porMunicipio' => $porMunicipio,
             'municipios' => $municipios,
             'porPersona' => $porPersona,
+            'delCandidato' => $delCandidato && $delCandidato->eventos > 0 ? $delCandidato : null,
             'equipo' => $equipo,
             'eventos' => $eventos,
             'opcionesMunicipio' => $lugares->ambito() === CargoEnum::AMBITO_NACIONAL

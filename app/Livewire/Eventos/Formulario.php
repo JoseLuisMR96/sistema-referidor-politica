@@ -46,6 +46,14 @@ class Formulario extends Component
 
     public ?int $responsable_id = null;
 
+    /** Si el candidato fue en persona, por defecto responde él: el responsable queda vacío (se puede elegir a alguien). */
+    public function updatedAsistioCandidato(bool $valor): void
+    {
+        if ($valor) {
+            $this->responsable_id = null;
+        }
+    }
+
     /** Otros integrantes del equipo que fueron (ids) */
     public array $integrantes = [];
 
@@ -237,9 +245,10 @@ class Formulario extends Component
         }
 
         $asignado = (float) ($data['monto_asignado'] ?: 0);
-        // El dinero siempre queda a nombre de alguien
-        if ($asignado > 0 && ! $data['responsable_id']) {
-            $this->addError('responsable_id', 'Elige a quién se le asignó el dinero.');
+        // El dinero siempre queda a nombre de alguien: el responsable o, si fue
+        // en persona y no se eligió a nadie, el candidato
+        if ($asignado > 0 && ! $data['responsable_id'] && ! $data['asistio_candidato']) {
+            $this->addError('responsable_id', 'Elige a quién se le asignó el dinero, o marca que el candidato estuvo en persona.');
 
             return null;
         }

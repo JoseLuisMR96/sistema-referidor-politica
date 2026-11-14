@@ -61,7 +61,7 @@
                 @endif
                 <div class="text-sm">
                     <span class="font-semibold">Responsable:</span>
-                    {{ $e->responsable ? "{$e->responsable->nombre} ({$e->responsable->rolTexto()})" : '—' }}
+                    {{ $e->responsable ? "{$e->responsable->nombre} ({$e->responsable->rolTexto()})" : ($e->responsableTexto() ?? '—') }}
                 </div>
                 @if ($e->integrantes->isNotEmpty())
                     <div class="text-sm"><span class="font-semibold">También fueron:</span> {{ $e->integrantes->pluck('nombre')->join(', ') }}</div>
@@ -80,8 +80,8 @@
                         {{ $diferencia < 0 ? 'Se pasó por '.$pesos(-$diferencia) : 'Sobró '.$pesos($diferencia) }}
                     </div>
                 @endif
-                @if ($e->responsable && $e->monto_asignado > 0)
-                    <div class="text-xs text-gray-500">A nombre de {{ $e->responsable->nombre }}.</div>
+                @if ($e->responsableTexto() && $e->monto_asignado > 0)
+                    <div class="text-xs text-gray-500">A nombre de {{ $e->responsable?->nombre ?? 'el candidato' }}.</div>
                 @endif
             </div>
         </div>

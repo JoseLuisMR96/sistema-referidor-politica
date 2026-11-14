@@ -155,7 +155,7 @@ class PresupuestoCampana
             ->whereNotIn('id', $conGastos)->with('responsable:id,nombre')->orderBy('fecha')->get() as $e) {
             $filas[] = [
                 $e->fecha->format('Y-m-d'), GastoCampana::CATEGORIA_EVENTOS, GastoCampana::CATEGORIAS[GastoCampana::CATEGORIA_EVENTOS],
-                'Evento: '.$e->titulo, (string) $e->responsable?->nombre, '', number_format((float) $e->monto_gastado, 2, '.', ''),
+                'Evento: '.$e->titulo, (string) $e->responsableTexto(), '', number_format((float) $e->monto_gastado, 2, '.', ''),
                 'Legalizado', $e->evidencias()->where('tipo', 'documento')->exists() ? 'Sí' : 'No', $e->titulo,
             ];
         }

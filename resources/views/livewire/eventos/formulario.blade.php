@@ -157,12 +157,18 @@
                     <div>
                         <label class="block text-sm font-semibold">Responsable del evento</label>
                         <select wire:model.live="responsable_id" class="{{ $campo }}">
-                            <option value="">— Nadie del equipo —</option>
+                            <option value="">{{ $asistio_candidato ? '— El candidato —' : '— Nadie del equipo —' }}</option>
                             @foreach ($equipo as $i)
                                 <option value="{{ $i->id }}">{{ $i->nombre }} ({{ $i->rolTexto() }}){{ $i->activo ? '' : ' · inactivo' }}</option>
                             @endforeach
                         </select>
-                        <div class="text-xs text-gray-500 mt-1">Quien lo organizó o fue en nombre del candidato. Si hay dinero, queda a su nombre.</div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            @if ($asistio_candidato)
+                                Vacío: responde el mismo candidato y el dinero queda a su nombre. Si alguien del equipo lo organizó, elígelo.
+                            @else
+                                Quien lo organizó o fue en nombre del candidato. Si hay dinero, queda a su nombre.
+                            @endif
+                        </div>
                         @error('responsable_id') <div class="text-sm text-red-600 mt-1">{{ $message }}</div> @enderror
                     </div>
 
