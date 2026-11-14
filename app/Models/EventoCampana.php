@@ -71,6 +71,19 @@ class EventoCampana extends Model
         return $this->belongsTo(IntegranteEquipo::class, 'responsable_id');
     }
 
+    /**
+     * Nombre de quien responde por el evento (y su dinero): el responsable del
+     * equipo, o el candidato si fue en persona y no se eligió a nadie.
+     */
+    public function responsableTexto(): ?string
+    {
+        if ($this->responsable) {
+            return $this->responsable->nombre;
+        }
+
+        return $this->asistio_candidato ? 'El candidato' : null;
+    }
+
     /** Otros integrantes del equipo que fueron. */
     public function integrantes(): BelongsToMany
     {

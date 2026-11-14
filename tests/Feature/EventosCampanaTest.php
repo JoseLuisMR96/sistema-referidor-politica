@@ -124,6 +124,37 @@ class EventosCampanaTest extends TestCase
         }
     }
 
+    public function test_si_el_candidato_fue_en_persona_el_dinero_puede_quedar_a_su_nombre(): void
+    {
+        $ana = IntegranteEquipo::create(['nombre' => 'Ana Pérez', 'rol' => 'emisario']);
+        $admin = $this->usuario();
+
+        // Marcar que fue en persona deja el responsable vacío (responde el candidato)…
+        Livewire::actingAs($admin)->test(Formulario::class)
+            ->set('responsable_id', $ana->id)
+            ->set('asistio_candidato', true)->assertSet('responsable_id', null)
+            ->assertSee('— El candidato —')
+            ->set('titulo', 'Gira por Granada')->set('municipio_id', $this->granada->id)
+            ->set('monto_asignado', '300.000')
+            ->call('guardar')->assertHasNoErrors();
+
+        $e = EventoCampana::sole();
+        $this->assertNull($e->responsable_id);
+        $this->assertSame('El candidato', $e->responsableTexto());
+
+        // …pero se puede elegir a alguien del equipo igual
+        Livewire::actingAs($admin)->test(Formulario::class)
+            ->set('asistio_candidato', true)->set('responsable_id', $ana->id)
+            ->set('titulo', 'Gira por Villavicencio')->set('municipio_id', $this->villavo->id)
+            ->set('monto_asignado', '200.000')
+            ->call('guardar')->assertHasNoErrors();
+        $this->assertSame($ana->id, EventoCampana::where('titulo', 'Gira por Villavicencio')->value('responsable_id'));
+
+        // En el listado, el dinero del candidato sale como una fila más
+        Livewire::actingAs($admin)->test(\App\Livewire\Eventos\Index::class)
+            ->assertSee('fue en persona, sin responsable del equipo');
+    }
+
     public function test_las_evidencias_son_privadas_del_candidato(): void
     {
         $e = EventoCampana::create(['titulo' => 'Visita', 'tipo' => 'visita', 'fecha' => now(), 'municipio_id' => $this->villavo->id]);

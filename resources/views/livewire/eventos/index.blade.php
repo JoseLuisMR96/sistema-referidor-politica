@@ -172,7 +172,7 @@
             </div>
 
             {{-- ===== Por persona ===== --}}
-            @if ($porPersona->isNotEmpty())
+            @if ($porPersona->isNotEmpty() || $delCandidato)
                 <div class="{{ $tarjeta }} p-4">
                     <div class="text-lg font-extrabold text-slate-900">Dinero por persona</div>
                     <div class="text-xs text-slate-500 mb-3">A quién se le ha asignado dinero como responsable de eventos (sin cancelados)</div>
@@ -188,6 +188,18 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y">
+                                @if ($delCandidato)
+                                    <tr wire:key="pp-candidato">
+                                        <td class="py-2 pr-4">
+                                            <span class="font-semibold text-slate-900">El candidato</span>
+                                            <span class="text-xs text-slate-400">fue en persona, sin responsable del equipo</span>
+                                        </td>
+                                        <td class="py-2 px-3 text-right tabular-nums">{{ $delCandidato->eventos }}</td>
+                                        <td class="py-2 px-3 text-right tabular-nums font-bold">{{ $pesos($delCandidato->asignado) }}</td>
+                                        <td class="py-2 px-3 text-right tabular-nums">{{ $pesos($delCandidato->gastado) }}</td>
+                                        <td class="py-2 px-3 text-right tabular-nums {{ $delCandidato->asignado - $delCandidato->gastado > 0 ? 'text-amber-700' : 'text-slate-500' }}">{{ $pesos(max(0, $delCandidato->asignado - $delCandidato->gastado)) }}</td>
+                                    </tr>
+                                @endif
                                 @foreach ($porPersona as $p)
                                     @php($persona = $equipo[$p->responsable_id] ?? null)
                                     <tr wire:key="pp-{{ $p->responsable_id }}">

@@ -267,7 +267,7 @@ Trazabilidad de dónde ha estado el candidato o su equipo (emisarios que van en 
 
   Un candidato sin cargo o sin lugar completo no registra eventos.
 - **Dinero:**
-  - `monto_asignado` queda a nombre del **responsable**: si hay monto, el responsable es obligatorio.
+  - `monto_asignado` queda a nombre del **responsable**. Si hay monto, hace falta responsable, salvo que el candidato haya ido en persona: entonces el responsable puede quedar vacío y el dinero va a nombre del candidato (`EventoCampana::responsableTexto()` devuelve "El candidato"; en "Dinero por persona" sale como una fila aparte). Marcar "El candidato estuvo en persona" vacía el responsable, que se puede volver a elegir.
   - `monto_gastado` es lo legalizado.
   - Los montos aceptan "1.200.000" (`Formulario::monto()`).
   - Los totales no cuentan los eventos cancelados.
